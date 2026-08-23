@@ -198,7 +198,7 @@ h1{
   color:var(--muted);font-variant-numeric:tabular-nums;
 }
 .leg-note{flex-basis:100%;font-size:14.5px;color:var(--ink-soft);margin:2px 0 0}
-.leg-note b{color:var(--accent);font-weight:600}
+.leg-note b,.leg-note strong{color:var(--accent);font-weight:600}
 
 /* ---------- notes ---------- */
 .notes{margin-top:64px;padding-top:36px;border-top:2px solid var(--ink)}
@@ -214,7 +214,7 @@ h2{
 }
 .note p{margin:0 0 9px;font-size:15.5px;color:var(--ink-soft)}
 .note p:last-child{margin-bottom:0}
-.note b{color:var(--ink);font-weight:600}
+.note b,.note strong{color:var(--ink);font-weight:600}
 
 .fares{width:100%;border-collapse:collapse;margin-top:4px;font-size:14.5px}
 .fares th,.fares td{text-align:left;padding:6px 10px 6px 0;border-bottom:1px solid var(--hairline)}
@@ -232,7 +232,7 @@ h2{
   background:var(--surface);border-radius:0 4px 4px 0;
 }
 .caveat p{margin:0;font-size:15px;color:var(--ink-soft)}
-.caveat b{color:var(--ink);font-weight:600}
+.caveat b,.caveat strong{color:var(--ink);font-weight:600}
 
 @media (max-width:640px){
   .wrap{padding:36px 16px 72px}
@@ -242,353 +242,367 @@ h2{
   .slot-label{padding-top:0}
   .from-note{margin-left:0;flex-basis:100%}
 }
+
+/* ------------------------------------------------------------- editor --- */
+.toolbar{
+  position:sticky;top:0;z-index:20;margin:-48px -24px 34px;padding:11px 24px;
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  background:var(--surface);border-bottom:1px solid var(--hairline);
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;
+}
+.toolbar .spacer{flex:1}
+.btn{
+  font:inherit;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
+  padding:6px 11px;border-radius:3px;cursor:pointer;
+  background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--hairline);
+}
+.btn:hover{color:var(--ink);border-color:var(--rail-soft)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{color:#fff;filter:brightness(1.07)}
+.status{color:var(--muted);font-size:11.5px;letter-spacing:.06em;min-width:8ch}
+.status.saving{color:var(--rail)}
+.status.saved{color:var(--accent)}
+.status.error{color:#c0392b}
+
+.legend{
+  margin:-14px 0 30px;padding:11px 14px;border:1px dashed var(--hairline);border-radius:4px;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;line-height:1.9;
+  color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 20px;
+}
+.legend b{color:var(--ink-soft);font-weight:600}
+
+.ed{
+  border-radius:2px;outline:1px dashed var(--rail-soft);outline-offset:3px;
+  min-width:1.5ch;display:inline-block;
+}
+.ed.block{display:block;white-space:pre-wrap}
+.ed:hover{outline-color:var(--rail);background:var(--surface-2)}
+.ed:focus{outline:2px solid var(--accent);outline-offset:3px;background:var(--surface-2)}
+.editing .slot-body,.editing .leg-note,.editing .standfirst{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:13.5px;line-height:1.75}
+
+.editing .day,.editing .leg,.editing .note{position:relative}
+.ctl{
+  position:absolute;top:-11px;right:10px;display:flex;gap:4px;
+  opacity:0;transition:opacity .12s;
+}
+.editing .day:hover .ctl,.editing .leg:hover .ctl,.editing .note:hover .ctl,.ctl:focus-within{opacity:1}
+.ctl button{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;letter-spacing:.05em;
+  padding:3px 7px;border-radius:2px;cursor:pointer;
+  background:var(--surface);color:var(--ink-soft);border:1px solid var(--hairline);
+}
+.ctl button:hover{color:var(--ink);border-color:var(--rail)}
+.ctl button.danger:hover{color:#fff;background:#c0392b;border-color:#c0392b}
+.note-ctl{top:-6px;right:0}
+
+.slot-add{
+  margin-top:14px;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;
+  letter-spacing:.1em;text-transform:uppercase;padding:5px 10px;border-radius:2px;cursor:pointer;
+  background:transparent;color:var(--muted);border:1px dashed var(--hairline);
+}
+.slot-add:hover{color:var(--accent);border-color:var(--accent)}
+.slot-del{
+  float:right;margin-left:8px;font-size:13px;line-height:1;padding:2px 6px;cursor:pointer;
+  background:transparent;color:var(--muted);border:1px solid transparent;border-radius:2px;
+}
+.slot-del:hover{color:#fff;background:#c0392b}
+
+@media (max-width:640px){
+  .toolbar{margin:-36px -16px 26px;padding:10px 16px}
+}
+@media (prefers-reduced-motion:reduce){.ctl{transition:none}}
+@media print{.toolbar,.ctl,.slot-add,.slot-del,.legend{display:none}}
 </style>
 
 <div class="wrap">
 
+
   <header class="masthead">
     <p class="eyebrow">Eight days · Four cities · One loop west</p>
     <h1>Tokaido Loop</h1>
-    <p class="standfirst">Tokyo out to Fukuoka, back east through Osaka and Shizuoka. Built from your Notes table — the weekdays you'd written line up exactly, and <em>Osaka lands on the empty Sunday</em> between them.</p>
+    <p class="standfirst"><span class="block">Tokyo out to Fukuoka, back east through Osaka and Shizuoka. Built from your Notes table — the weekdays you&#39;d written line up exactly, and <em>Osaka lands on the empty Sunday</em> between them.</span></p>
   </header>
 
-  <nav class="route" aria-label="Route">
-    <span class="stop">Shinagawa</span><span class="arrow">▸</span>
-    <span class="stop">Fukuoka</span><span class="arrow">▸</span>
-    <span class="stop">Osaka</span><span class="arrow">▸</span>
-    <span class="stop">Shizuoka</span><span class="arrow">▸</span>
-    <span class="stop back">Tokyo</span>
-  </nav>
+  <nav class="route" aria-label="Route"><span class="stop">Shinagawa</span><span class="arrow">▸</span><span class="stop">Fukuoka</span><span class="arrow">▸</span><span class="stop">Osaka</span><span class="arrow">▸</span><span class="stop">Shizuoka</span><span class="arrow">▸</span><span class="stop back">Tokyo</span></nav>
 
-  <dl class="stats">
-    <div class="stat"><dt>Nights</dt><dd>7</dd></div>
-    <div class="stat"><dt>Hotels</dt><dd>4</dd></div>
-    <div class="stat"><dt>Rail + air</dt><dd>≈ ¥46k</dd></div>
-    <div class="stat"><dt>Longest leg</dt><dd>2h30</dd></div>
-  </dl>
+  <dl class="stats"><div class="stat"><dt>Nights</dt><dd>7</dd></div><div class="stat"><dt>Hotels</dt><dd>4</dd></div><div class="stat"><dt>Rail + air</dt><dd>≈ ¥46k</dd></div><div class="stat"><dt>Longest leg</dt><dd>2h30</dd></div></dl>
 
   <div class="timeline">
-
-    <!-- DAY 1 -->
-    <div class="entry">
-      <div class="marker"><div class="dot arrive"></div></div>
-      <div>
-        <div class="day">
-          <div class="day-head">
-            <span class="daynum">Day 01 · Tue</span>
-            <h3 class="city">Shinagawa</h3>
-            <span class="chip arrive">Arrive</span>
-            <span class="from-note">From your note</span>
-          </div>
-          <div class="slots">
-            <div class="slot">
-              <div class="slot-label">Arrive</div>
-              <p class="slot-body"><strong>Haneda (HND)</strong> — Keikyu line runs direct to Shinagawa Station, <span class="mono">13 min · ¥300</span>. Easily the best airport for this trip.
-                <span class="alt">Landing at Narita instead: Narita Express to Shinagawa, <span class="mono">~80 min · ¥3,250</span>.</span></p>
-            </div>
-            <div class="slot">
-              <div class="slot-label">Do</div>
-              <p class="slot-body"><strong>Maxell Aqua Park Shinagawa</strong> — the aquarium from your list. It sits inside the Shinagawa Prince complex, two minutes from the Takanawa exit, and stays open into the evening. Dark, cool, and low-effort: the right call on a jet-lagged first day.
-                <span class="sub">Roughly ¥2,500. Dolphin show runs several times daily — check the board on the way in.</span></p>
-            </div>
-            <div class="slot">
-              <div class="slot-label">Stay</div>
-              <p class="slot-body"><strong>Shinagawa Prince Hotel</strong> — attached to the station, and the aquarium is downstairs. Four nights here, no repacking.
-                <span class="alt">Cheaper nearby: Sotetsu Fresa Inn Tokyo-Shinagawa.</span></p>
-            </div>
-          </div>
+<div class="entry" data-entry="1">
+    <div class="marker"><div class="dot arrive"></div></div>
+    <div>
+      <div class="day">
+        
+        <div class="day-head">
+          <span class="daynum">Day 01 · Tue</span>
+          <h3 class="city">Shinagawa</h3>
+          <span class="chip arrive">Arrive</span>
+          <span class="from-note">From your note</span>
         </div>
+        <div class="slots"><div class="slot">
+        <div class="slot-label">Arrive</div>
+        <p class="slot-body"><span class="block"><strong>Haneda (HND)</strong> — Keikyu line runs direct to Shinagawa Station, <span class="mono">13 min · ¥300</span>. Easily the best airport for this trip.<span class="alt">Landing at Narita instead: Narita Express to Shinagawa, <span class="mono">~80 min · ¥3,250</span>.</span></span></p>
+      </div><div class="slot">
+        <div class="slot-label">Do</div>
+        <p class="slot-body"><span class="block"><strong>Maxell Aqua Park Shinagawa</strong> — the aquarium from your list. It sits inside the Shinagawa Prince complex, two minutes from the Takanawa exit, and stays open into the evening. Dark, cool, and low-effort: the right call on a jet-lagged first day.<span class="sub">Roughly ¥2,500. Dolphin show runs several times daily — check the board on the way in.</span></span></p>
+      </div><div class="slot">
+        <div class="slot-label">Stay</div>
+        <p class="slot-body"><span class="block"><strong>Shinagawa Prince Hotel</strong> — attached to the station, and the aquarium is downstairs. Four nights here, no repacking.<span class="alt">Cheaper nearby: Sotetsu Fresa Inn Tokyo-Shinagawa.</span></span></p>
+      </div></div>
+        
       </div>
     </div>
-
-    <!-- DAY 2 -->
-    <div class="entry">
-      <div class="marker"><div class="dot"></div></div>
-      <div>
-        <div class="day">
-          <div class="day-head">
-            <span class="daynum">Day 02 · Wed</span>
-            <h3 class="city">Tokyo — west side</h3>
-            <span class="chip stay">Same hotel</span>
-          </div>
-          <div class="slots">
-            <div class="slot">
-              <div class="slot-label">Do</div>
-              <p class="slot-body"><strong>Meiji Jingu</strong> in the morning while the forest path is still quiet, then walk out through <strong>Harajuku</strong> and down Omotesando. Finish in <strong>Shibuya</strong> after dark — the crossing only works at night.
-                <span class="sub">Shinagawa to Shibuya is 12 minutes on the Yamanote line.</span></p>
-            </div>
-            <div class="slot">
-              <div class="slot-label">Stay</div>
-              <p class="slot-body">Shinagawa <span class="mono">— night 2 of 4</span></p>
-            </div>
-          </div>
+  </div>
+<div class="entry" data-entry="2">
+    <div class="marker"><div class="dot "></div></div>
+    <div>
+      <div class="day">
+        
+        <div class="day-head">
+          <span class="daynum">Day 02 · Wed</span>
+          <h3 class="city">Tokyo — west side</h3>
+          <span class="chip stay">Same hotel</span>
+          
         </div>
+        <div class="slots"><div class="slot">
+        <div class="slot-label">Do</div>
+        <p class="slot-body"><span class="block"><strong>Meiji Jingu</strong> in the morning while the forest path is still quiet, then walk out through <strong>Harajuku</strong> and down Omotesando. Finish in <strong>Shibuya</strong> after dark — the crossing only works at night.<span class="sub">Shinagawa to Shibuya is 12 minutes on the Yamanote line.</span></span></p>
+      </div><div class="slot">
+        <div class="slot-label">Stay</div>
+        <p class="slot-body"><span class="block">Shinagawa <span class="mono">— night 2 of 4</span></span></p>
+      </div></div>
+        
       </div>
     </div>
-
-    <!-- DAY 3 -->
-    <div class="entry">
-      <div class="marker"><div class="dot"></div></div>
-      <div>
-        <div class="day">
-          <div class="day-head">
-            <span class="daynum">Day 03 · Thu</span>
-            <h3 class="city">Tokyo — east side</h3>
-            <span class="chip stay">Same hotel</span>
-          </div>
-          <div class="slots">
-            <div class="slot">
-              <div class="slot-label">Do</div>
-              <p class="slot-body"><strong>Sensoji</strong> in Asakusa first thing, then Nakamise street for snacks. Afternoon splits by taste: <strong>Ueno</strong> for the museum cluster and the park, or <strong>Akihabara</strong> two stops down.
-                <span class="alt">If teamLab is on your list, book it now — tickets sell out days ahead and it's the one thing here you can't walk up to.</span></p>
-            </div>
-            <div class="slot">
-              <div class="slot-label">Stay</div>
-              <p class="slot-body">Shinagawa <span class="mono">— night 3 of 4</span></p>
-            </div>
-          </div>
+  </div>
+<div class="entry" data-entry="3">
+    <div class="marker"><div class="dot "></div></div>
+    <div>
+      <div class="day">
+        
+        <div class="day-head">
+          <span class="daynum">Day 03 · Thu</span>
+          <h3 class="city">Tokyo — east side</h3>
+          <span class="chip stay">Same hotel</span>
+          
         </div>
+        <div class="slots"><div class="slot">
+        <div class="slot-label">Do</div>
+        <p class="slot-body"><span class="block"><strong>Sensoji</strong> in Asakusa first thing, then Nakamise street for snacks. Afternoon splits by taste: <strong>Ueno</strong> for the museum cluster and the park, or <strong>Akihabara</strong> two stops down.<span class="alt">If teamLab is on your list, book it now — tickets sell out days ahead and it&#39;s the one thing here you can&#39;t walk up to.</span></span></p>
+      </div><div class="slot">
+        <div class="slot-label">Stay</div>
+        <p class="slot-body"><span class="block">Shinagawa <span class="mono">— night 3 of 4</span></span></p>
+      </div></div>
+        
       </div>
     </div>
-
-    <!-- DAY 4 -->
-    <div class="entry">
-      <div class="marker"><div class="dot"></div></div>
-      <div>
-        <div class="day">
-          <div class="day-head">
-            <span class="daynum">Day 04 · Fri</span>
-            <h3 class="city">Kamakura</h3>
-            <span class="chip stay">Same hotel</span>
-          </div>
-          <div class="slots">
-            <div class="slot">
-              <div class="slot-label">Do</div>
-              <p class="slot-body"><strong>Day trip to Kamakura</strong> — the Great Buddha, Hasedera's hillside gardens, and a coastline you won't see anywhere else on this route. Direct from Shinagawa on the Yokosuka line, <span class="mono">~50 min</span>.
-                <span class="alt">Rather stay in the city? Shimokitazawa for secondhand shops, or Nakameguro along the canal.</span></p>
-            </div>
-            <div class="slot">
-              <div class="slot-label">Stay</div>
-              <p class="slot-body">Shinagawa <span class="mono">— night 4 of 4</span>. Repack tonight; tomorrow starts early.</p>
-            </div>
-          </div>
+  </div>
+<div class="entry" data-entry="4">
+    <div class="marker"><div class="dot "></div></div>
+    <div>
+      <div class="day">
+        
+        <div class="day-head">
+          <span class="daynum">Day 04 · Fri</span>
+          <h3 class="city">Kamakura</h3>
+          <span class="chip stay">Same hotel</span>
+          
         </div>
+        <div class="slots"><div class="slot">
+        <div class="slot-label">Do</div>
+        <p class="slot-body"><span class="block"><strong>Day trip to Kamakura</strong> — the Great Buddha, Hasedera&#39;s hillside gardens, and a coastline you won&#39;t see anywhere else on this route. Direct from Shinagawa on the Yokosuka line, <span class="mono">~50 min</span>.<span class="alt">Rather stay in the city? Shimokitazawa for secondhand shops, or Nakameguro along the canal.</span></span></p>
+      </div><div class="slot">
+        <div class="slot-label">Stay</div>
+        <p class="slot-body"><span class="block">Shinagawa <span class="mono">— night 4 of 4</span>. Repack tonight; tomorrow starts early.</span></p>
+      </div></div>
+        
       </div>
     </div>
-
-    <!-- LEG -->
-    <div class="entry">
-      <div class="marker leg-mark"><div class="glyph">✈</div></div>
-      <div>
-        <div class="leg">
-          <span class="leg-title">Tokyo → Fukuoka</span>
-          <span class="leg-meta">HND–FUK · 1h50 · ¥12–25k</span>
-          <p class="leg-note">Fly this one. <b>The Shinkansen takes 4h50 and costs about ¥23,000</b> — no faster, no cheaper, and it eats your Owl Cafe morning. Haneda is 13 minutes from your hotel on the Keikyu line, which makes an early departure painless. ANA, JAL, Skymark and Peach all run the route.</p>
-        </div>
+  </div>
+<div class="entry" data-entry="5">
+    <div class="marker leg-mark"><div class="glyph">✈</div></div>
+    <div>
+      <div class="leg">
+        
+        <span class="leg-title">Tokyo → Fukuoka</span>
+        <span class="leg-meta">HND–FUK · 1h50 · ¥12–25k</span>
+        <p class="leg-note"><span class="block">Fly this one. <strong>The Shinkansen takes 4h50 and costs about ¥23,000</strong> — no faster, no cheaper, and it eats your Owl Cafe morning. Haneda is 13 minutes from your hotel on the Keikyu line, which makes an early departure painless. ANA, JAL, Skymark and Peach all run the route.</span></p>
       </div>
     </div>
-
-    <!-- DAY 5 -->
-    <div class="entry">
-      <div class="marker"><div class="dot arrive"></div></div>
-      <div>
-        <div class="day">
-          <div class="day-head">
-            <span class="daynum">Day 05 · Sat</span>
-            <h3 class="city">Fukuoka</h3>
-            <span class="chip arrive">Arrive</span>
-            <span class="from-note">From your note</span>
-          </div>
-          <div class="slots">
-            <div class="slot">
-              <div class="slot-label">Arrive</div>
-              <p class="slot-body">Fukuoka Airport is unusually central — <strong>subway to Hakata Station in 5 minutes</strong>, Tenjin in 11. Drop bags, start the day.</p>
-            </div>
-            <div class="slot">
-              <div class="slot-label">Do</div>
-              <p class="slot-body"><strong>Owl cafe</strong> — the one from your list. Fukuoka's cluster around Tenjin and Daimyo; reserve ahead, since most run timed sessions and cap the room. Afternoon at <strong>Ohori Park</strong> and the Fukuoka Castle ruins next door.
-                <span class="sub">Evening is the real reason to come: <strong>yatai</strong>, the open-air food stalls along the Nakasu riverfront. Tonkotsu ramen at a stall, standing up, is the city's signature.</span></p>
-            </div>
-            <div class="slot">
-              <div class="slot-label">Stay</div>
-              <p class="slot-body"><strong>Dormy Inn Premium Hakata Canal City Mae</strong> — walkable to the yatai, and it has a rooftop bath, which you'll want after a travel day.
-                <span class="alt">Alternative: Mitsui Garden Hotel Fukuoka Nakasu, same area.</span></p>
-            </div>
-          </div>
+  </div>
+<div class="entry" data-entry="6">
+    <div class="marker"><div class="dot arrive"></div></div>
+    <div>
+      <div class="day">
+        
+        <div class="day-head">
+          <span class="daynum">Day 05 · Sat</span>
+          <h3 class="city">Fukuoka</h3>
+          <span class="chip arrive">Arrive</span>
+          <span class="from-note">From your note</span>
         </div>
+        <div class="slots"><div class="slot">
+        <div class="slot-label">Arrive</div>
+        <p class="slot-body"><span class="block">Fukuoka Airport is unusually central — <strong>subway to Hakata Station in 5 minutes</strong>, Tenjin in 11. Drop bags, start the day.</span></p>
+      </div><div class="slot">
+        <div class="slot-label">Do</div>
+        <p class="slot-body"><span class="block"><strong>Owl cafe</strong> — the one from your list. Fukuoka&#39;s cluster around Tenjin and Daimyo; reserve ahead, since most run timed sessions and cap the room. Afternoon at <strong>Ohori Park</strong> and the Fukuoka Castle ruins next door.<span class="sub">Evening is the real reason to come: <strong>yatai</strong>, the open-air food stalls along the Nakasu riverfront. Tonkotsu ramen at a stall, standing up, is the city&#39;s signature.</span></span></p>
+      </div><div class="slot">
+        <div class="slot-label">Stay</div>
+        <p class="slot-body"><span class="block"><strong>Dormy Inn Premium Hakata Canal City Mae</strong> — walkable to the yatai, and it has a rooftop bath, which you&#39;ll want after a travel day.<span class="alt">Alternative: Mitsui Garden Hotel Fukuoka Nakasu, same area.</span></span></p>
+      </div></div>
+        
       </div>
     </div>
-
-    <!-- LEG -->
-    <div class="entry">
-      <div class="marker leg-mark"><div class="glyph">▮</div></div>
-      <div>
-        <div class="leg">
-          <span class="leg-title">Hakata → Shin-Osaka</span>
-          <span class="leg-meta">Nozomi · 2h30 · ≈¥15,600</span>
-          <p class="leg-note">Sanyo Shinkansen, straight shot. Take a morning train so Osaka gets a full afternoon — one night here is tight by design.</p>
-        </div>
+  </div>
+<div class="entry" data-entry="7">
+    <div class="marker leg-mark"><div class="glyph">▮</div></div>
+    <div>
+      <div class="leg">
+        
+        <span class="leg-title">Hakata → Shin-Osaka</span>
+        <span class="leg-meta">Nozomi · 2h30 · ≈¥15,600</span>
+        <p class="leg-note"><span class="block">Sanyo Shinkansen, straight shot. Take a morning train so Osaka gets a full afternoon — one night here is tight by design.</span></p>
       </div>
     </div>
-
-    <!-- DAY 6 -->
-    <div class="entry">
-      <div class="marker"><div class="dot arrive"></div></div>
-      <div>
-        <div class="day">
-          <div class="day-head">
-            <span class="daynum">Day 06 · Sun</span>
-            <h3 class="city">Osaka</h3>
-            <span class="chip arrive">Arrive</span>
-            <span class="from-note">Your blank row</span>
-          </div>
-          <div class="slots">
-            <div class="slot">
-              <div class="slot-label">Arrive</div>
-              <p class="slot-body">Shin-Osaka, then <strong>Midosuji line south to Namba</strong>, <span class="mono">~15 min</span>. Stay on that end so the evening is on foot.</p>
-            </div>
-            <div class="slot">
-              <div class="slot-label">Do</div>
-              <p class="slot-body">One night, so pick density over coverage. <strong>Kuromon Ichiba Market</strong> in the afternoon for grilled scallops and uni, then <strong>Dotonbori</strong> once the signs come on — the Glico runner, takoyaki from a window, okonomiyaki sitting down.
-                <span class="alt">Osaka Castle is the trade-off you're making. It needs half a day and it's on the wrong side of town.</span></p>
-            </div>
-            <div class="slot">
-              <div class="slot-label">Stay</div>
-              <p class="slot-body"><strong>Cross Hotel Osaka</strong> — right at the edge of Dotonbori, so the night ends at the door.
-                <span class="alt">Staying near Shin-Osaka instead buys you 15 minutes tomorrow morning and costs you the whole evening. Not worth it.</span></p>
-            </div>
-          </div>
+  </div>
+<div class="entry" data-entry="8">
+    <div class="marker"><div class="dot arrive"></div></div>
+    <div>
+      <div class="day">
+        
+        <div class="day-head">
+          <span class="daynum">Day 06 · Sun</span>
+          <h3 class="city">Osaka</h3>
+          <span class="chip arrive">Arrive</span>
+          <span class="from-note">Your blank row</span>
         </div>
+        <div class="slots"><div class="slot">
+        <div class="slot-label">Arrive</div>
+        <p class="slot-body"><span class="block">Shin-Osaka, then <strong>Midosuji line south to Namba</strong>, <span class="mono">~15 min</span>. Stay on that end so the evening is on foot.</span></p>
+      </div><div class="slot">
+        <div class="slot-label">Do</div>
+        <p class="slot-body"><span class="block">One night, so pick density over coverage. <strong>Kuromon Ichiba Market</strong> in the afternoon for grilled scallops and uni, then <strong>Dotonbori</strong> once the signs come on — the Glico runner, takoyaki from a window, okonomiyaki sitting down.<span class="alt">Osaka Castle is the trade-off you&#39;re making. It needs half a day and it&#39;s on the wrong side of town.</span></span></p>
+      </div><div class="slot">
+        <div class="slot-label">Stay</div>
+        <p class="slot-body"><span class="block"><strong>Cross Hotel Osaka</strong> — right at the edge of Dotonbori, so the night ends at the door.<span class="alt">Staying near Shin-Osaka instead buys you 15 minutes tomorrow morning and costs you the whole evening. Not worth it.</span></span></p>
+      </div></div>
+        
       </div>
     </div>
-
-    <!-- LEG -->
-    <div class="entry">
-      <div class="marker leg-mark"><div class="glyph">▮</div></div>
-      <div>
-        <div class="leg">
-          <span class="leg-title">Shin-Osaka → Shizuoka</span>
-          <span class="leg-meta">Hikari · ~2h10 · ≈¥10,900</span>
-          <p class="leg-note"><b>Nozomi does not stop at Shizuoka.</b> You need a Hikari — and not every Hikari stops either, so check the specific train before you board. Kodama always stops but takes closer to three hours.</p>
-        </div>
+  </div>
+<div class="entry" data-entry="9">
+    <div class="marker leg-mark"><div class="glyph">▮</div></div>
+    <div>
+      <div class="leg">
+        
+        <span class="leg-title">Shin-Osaka → Shizuoka</span>
+        <span class="leg-meta">Hikari · ~2h10 · ≈¥10,900</span>
+        <p class="leg-note"><span class="block"><strong>Nozomi does not stop at Shizuoka.</strong> You need a Hikari — and not every Hikari stops either, so check the specific train before you board. Kodama always stops but takes closer to three hours.</span></p>
       </div>
     </div>
-
-    <!-- DAY 7 -->
-    <div class="entry">
-      <div class="marker"><div class="dot arrive"></div></div>
-      <div>
-        <div class="day">
-          <div class="day-head">
-            <span class="daynum">Day 07 · Mon</span>
-            <h3 class="city">Shizuoka</h3>
-            <span class="chip arrive">Arrive</span>
-            <span class="from-note">From your note</span>
-          </div>
-          <div class="slots">
-            <div class="slot">
-              <div class="slot-label">Arrive</div>
-              <p class="slot-body">Shizuoka Station. Sit on the <strong>left side heading east</strong> — this stretch is the classic Mt. Fuji view from the Shinkansen, weather permitting.</p>
-            </div>
-            <div class="slot">
-              <div class="slot-label">Do</div>
-              <p class="slot-body"><strong>Museum and cafe</strong>, as you wrote it. The <strong>Shizuoka Prefectural Museum of Art</strong> is the draw — its Rodin Wing holds a full cast of <em>The Gates of Hell</em>, and it's a genuinely strange thing to find out here.
-                <span class="sub">Then the cafe half: this is Japan's green tea heartland, so make it a proper tea house rather than a coffee shop. Ask for a local sencha flight.</span>
-                <span class="alt">Short on time? The Shizuoka City Museum of Art is smaller and sits right in town by the station.</span></p>
-            </div>
-            <div class="slot">
-              <div class="slot-label">Stay</div>
-              <p class="slot-body"><strong>Hotel Associa Shizuoka</strong> — connected directly to the station, which matters with one night and an early train out.</p>
-            </div>
-          </div>
+  </div>
+<div class="entry" data-entry="10">
+    <div class="marker"><div class="dot arrive"></div></div>
+    <div>
+      <div class="day">
+        
+        <div class="day-head">
+          <span class="daynum">Day 07 · Mon</span>
+          <h3 class="city">Shizuoka</h3>
+          <span class="chip arrive">Arrive</span>
+          <span class="from-note">From your note</span>
         </div>
+        <div class="slots"><div class="slot">
+        <div class="slot-label">Arrive</div>
+        <p class="slot-body"><span class="block">Shizuoka Station. Sit on the <strong>left side heading east</strong> — this stretch is the classic Mt. Fuji view from the Shinkansen, weather permitting.</span></p>
+      </div><div class="slot">
+        <div class="slot-label">Do</div>
+        <p class="slot-body"><span class="block"><strong>Museum and cafe</strong>, as you wrote it. The <strong>Shizuoka Prefectural Museum of Art</strong> is the draw — its Rodin Wing holds a full cast of <em>The Gates of Hell</em>, and it&#39;s a genuinely strange thing to find out here.<span class="sub">Then the cafe half: this is Japan&#39;s green tea heartland, so make it a proper tea house rather than a coffee shop. Ask for a local sencha flight.</span><span class="alt">Short on time? The Shizuoka City Museum of Art is smaller and sits right in town by the station.</span></span></p>
+      </div><div class="slot">
+        <div class="slot-label">Stay</div>
+        <p class="slot-body"><span class="block"><strong>Hotel Associa Shizuoka</strong> — connected directly to the station, which matters with one night and an early train out.</span></p>
+      </div></div>
+        
       </div>
     </div>
-
-    <!-- LEG -->
-    <div class="entry">
-      <div class="marker leg-mark"><div class="glyph">▮</div></div>
-      <div>
-        <div class="leg">
-          <span class="leg-title">Shizuoka → Shinagawa</span>
-          <span class="leg-meta">Hikari · ~1h · ≈¥6,400</span>
-          <p class="leg-note">Hikari again — same Nozomi problem in reverse. Shinagawa puts you 13 minutes from Haneda on the Keikyu line.</p>
-        </div>
+  </div>
+<div class="entry" data-entry="11">
+    <div class="marker leg-mark"><div class="glyph">▮</div></div>
+    <div>
+      <div class="leg">
+        
+        <span class="leg-title">Shizuoka → Shinagawa</span>
+        <span class="leg-meta">Hikari · ~1h · ≈¥6,400</span>
+        <p class="leg-note"><span class="block">Hikari again — same Nozomi problem in reverse. Shinagawa puts you 13 minutes from Haneda on the Keikyu line.</span></p>
       </div>
     </div>
-
-    <!-- DAY 8 -->
-    <div class="entry">
-      <div class="marker"><div class="dot end"></div></div>
-      <div>
-        <div class="day">
-          <div class="day-head">
-            <span class="daynum">Day 08 · Tue</span>
-            <h3 class="city">Tokyo — out</h3>
-            <span class="chip out">Depart</span>
-          </div>
-          <div class="slots">
-            <div class="slot">
-              <div class="slot-label">Do</div>
-              <p class="slot-body">Depends entirely on your flight. <strong>Evening departure</strong> leaves room for one last stop — Tsukiji outer market for breakfast, or whatever you ran out of time for on Days 2–3. <strong>Morning departure</strong> means straight to the airport.
-                <span class="sub">Coin lockers at Shinagawa hold your bags either way.</span></p>
-            </div>
-            <div class="slot">
-              <div class="slot-label">Stay</div>
-              <p class="slot-body">Nothing booked — the loop ends here.
-                <span class="alt">Flying out Wednesday instead? Add one more Shinagawa night and you get a full extra Tokyo day.</span></p>
-            </div>
-          </div>
+  </div>
+<div class="entry" data-entry="12">
+    <div class="marker"><div class="dot end"></div></div>
+    <div>
+      <div class="day">
+        
+        <div class="day-head">
+          <span class="daynum">Day 08 · Tue</span>
+          <h3 class="city">Tokyo — out</h3>
+          <span class="chip out">Depart</span>
+          
         </div>
+        <div class="slots"><div class="slot">
+        <div class="slot-label">Do</div>
+        <p class="slot-body"><span class="block">Depends entirely on your flight. <strong>Evening departure</strong> leaves room for one last stop — Tsukiji outer market for breakfast, or whatever you ran out of time for on Days 2–3. <strong>Morning departure</strong> means straight to the airport.<span class="sub">Coin lockers at Shinagawa hold your bags either way.</span></span></p>
+      </div><div class="slot">
+        <div class="slot-label">Stay</div>
+        <p class="slot-body"><span class="block">Nothing booked — the loop ends here.<span class="alt">Flying out Wednesday instead? Add one more Shinagawa night and you get a full extra Tokyo day.</span></span></p>
+      </div></div>
+        
       </div>
     </div>
-
+  </div>
   </div>
 
-  <!-- ---------- notes ---------- -->
   <section class="notes">
     <h2>Before you book</h2>
     <div class="note-grid">
-
-      <div class="note">
-        <h3>Skip the JR Pass</h3>
-        <p>It doesn't pay off on this route. The seven-day pass runs <b>¥50,000</b> and excludes Nozomi and Mizuho without a surcharge — which is exactly what you'd want for the Hakata legs.</p>
-        <div class="table-scroll">
-          <table class="fares">
-            <thead><tr><th>Leg</th><th>Fare</th></tr></thead>
-            <tbody>
-              <tr><td>Hakata → Shin-Osaka</td><td class="num">¥15,600</td></tr>
-              <tr><td>Shin-Osaka → Shizuoka</td><td class="num">¥10,900</td></tr>
-              <tr><td>Shizuoka → Shinagawa</td><td class="num">¥6,400</td></tr>
-              <tr class="total"><td>Point-to-point</td><td class="num">≈¥32,900</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p style="margin-top:9px">Add a budget flight to Fukuoka and you're still well under the pass. Buy individual tickets.</p>
-      </div>
-
-      <div class="note">
-        <h3>Reserve seats in advance</h3>
-        <p>Use the <b>smartEX</b> app for Tokaido and Sanyo Shinkansen — it takes a foreign card and lets you change trains without a counter queue.</p>
-        <p>Your Sunday Hakata → Osaka leg is the one to lock early. Weekend westbound trains fill, and standing for 2h30 with luggage is miserable.</p>
-      </div>
-
-      <div class="note">
-        <h3>The Shizuoka trap</h3>
-        <p>Worth repeating because it catches people: <b>Nozomi — the fastest and most frequent Shinkansen — does not stop at Shizuoka.</b></p>
-        <p>Both of your Shizuoka legs need a Hikari, and some Hikari services skip it too. Confirm the individual train, not just the type.</p>
-      </div>
-
-      <div class="note">
-        <h3>Hotel budget</h3>
-        <p>Everything above is mid-range business class, roughly <b>¥12,000–20,000</b> a night for a small, clean room near a station.</p>
-        <p>Rates swing hard by season and fill fast around Japanese holidays. Book the Fukuoka Saturday first — it's your least flexible night.</p>
-      </div>
-
+<div class="note" data-note="1">
+    
+    <h3>Skip the JR Pass</h3>
+    <div class="block"><p>It doesn&#39;t pay off on this route. The seven-day pass runs <strong>¥50,000</strong> and excludes Nozomi and Mizuho without a surcharge — which is exactly what you&#39;d want for the Hakata legs.</p></div>
+    <div class="table-scroll"><table class="fares">
+      <thead><tr><th>Leg</th><th>Fare</th></tr></thead>
+      <tbody><tr><td>Hakata → Shin-Osaka</td><td class="num">¥15,600</td></tr><tr><td>Shin-Osaka → Shizuoka</td><td class="num">¥10,900</td></tr><tr><td>Shizuoka → Shinagawa</td><td class="num">¥6,400</td></tr>
+        <tr class="total"><td>Point-to-point</td><td class="num">≈¥32,900</td></tr>
+      </tbody></table></div>
+    <p style="margin-top:9px"><span class="block">Add a budget flight to Fukuoka and you&#39;re still well under the pass. Buy individual tickets.</span></p>
+  </div>
+<div class="note" data-note="2">
+    
+    <h3>Reserve seats in advance</h3>
+    <div class="block"><p>Use the <strong>smartEX</strong> app for Tokaido and Sanyo Shinkansen — it takes a foreign card and lets you change trains without a counter queue.</p><p>Your Sunday Hakata → Osaka leg is the one to lock early. Weekend westbound trains fill, and standing for 2h30 with luggage is miserable.</p></div>
+    
+    
+  </div>
+<div class="note" data-note="3">
+    
+    <h3>The Shizuoka trap</h3>
+    <div class="block"><p>Worth repeating because it catches people: <strong>Nozomi — the fastest and most frequent Shinkansen — does not stop at Shizuoka.</strong></p><p>Both of your Shizuoka legs need a Hikari, and some Hikari services skip it too. Confirm the individual train, not just the type.</p></div>
+    
+    
+  </div>
+<div class="note" data-note="4">
+    
+    <h3>Hotel budget</h3>
+    <div class="block"><p>Everything above is mid-range business class, roughly <strong>¥12,000–20,000</strong> a night for a small, clean room near a station.</p><p>Rates swing hard by season and fill fast around Japanese holidays. Book the Fukuoka Saturday first — it&#39;s your least flexible night.</p></div>
+    
+    
+  </div>
     </div>
+    
 
     <div class="caveat">
-      <p><b>Two things to verify yourself.</b> Fares and opening hours here are approximate and change — treat them as planning figures, not bookings. And confirm the owl cafe directly before you build Saturday around it: small animal cafes open, move, and close often, and I can't check its current status from here.</p>
+      <p><span class="block"><strong>Two things to verify yourself.</strong> Fares and opening hours here are approximate and change — treat them as planning figures, not bookings. And confirm the owl cafe directly before you build Saturday around it: small animal cafes open, move, and close often, and I can&#39;t check its current status from here.</span></p>
     </div>
   </section>
 

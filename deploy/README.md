@@ -19,8 +19,22 @@ journalctl -u tokaido-loop -f      # follow logs
 sudo systemctl restart tokaido-loop
 ```
 
-Editing `itinerary.html` needs no restart — `server.ts` re-reads it per
-request. Only changes to `server.ts` itself require one.
-
 Reading the journal without `sudo` requires membership in `systemd-journal`;
 that group change lands on next login.
+
+## Where the content lives
+
+Content is in SQLite at `itinerary.db`, not in the source. Edit it in the
+browser at `/edit`. Only changes to `server.ts`, `src/` or `public/` need a
+restart.
+
+`itinerary.html` is **generated** — it is the artifact fragment, refreshed with
+`curl -s localhost:4321/export/artifact.html > itinerary.html`. Don't hand-edit it.
+
+## Back up
+
+```sh
+curl -s localhost:4321/export/data.json > backup.json          # export
+curl -X POST localhost:4321/api/import -d @backup.json \
+     -H 'content-type: application/json'                       # restore
+```

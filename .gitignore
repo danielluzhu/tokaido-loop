@@ -1,3 +1,6 @@
 IMG_*.jpeg
 IMG_*.jpg
 .server.log
+itinerary.db
+itinerary.db-wal
+itinerary.db-shm
