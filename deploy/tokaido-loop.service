@@ -1,0 +1,38 @@
+[Unit]
+Description=Tokaido Loop - Japan rail itinerary webapp
+Documentation=https://jk-4321.another.ac
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/workspace
+Environment=PORT=4321
+ExecStart=/home/ubuntu/.bun/bin/bun run /workspace/server.ts
+
+Restart=always
+RestartSec=2s
+# Don't give up if it flaps during a bad edit; keep retrying.
+StartLimitIntervalSec=0
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tokaido-loop
+
+# The server only reads /workspace and binds a port; nothing else is needed.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/workspace
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
