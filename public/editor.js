@@ -109,6 +109,16 @@
       }
     }
 
+    if (btn.classList.contains("shot-del")) {
+      if (!confirm("Remove this photo? Undo will bring it back.")) return;
+      return mutate("/api/photo/" + btn.dataset.photo + "/delete");
+    }
+
+    if (btn.classList.contains("shot-add")) {
+      pickPhoto(btn.dataset.id);
+      return;
+    }
+
     if (btn.classList.contains("slot-add")) {
       if (btn.id === "add-note") return mutate("/api/note");
       return mutate("/api/entry/" + btn.dataset.id + "/slot");
@@ -130,6 +140,65 @@
       else if (choice === "3") location.href = "/export/artifact.html";
     }
   });
+
+  /* --- photo upload: resize in the browser, since the box has no image lib -- */
+
+  var MAX_EDGE = 1400;
+
+  function shrink(file) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
+        // Already small and already a JPEG? Send it untouched.
+        if (scale === 1 && file.type === "image/jpeg" && file.size < 1200000) {
+          return resolve({ blob: file, type: file.type });
+        }
+        var canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          function (blob) {
+            blob ? resolve({ blob: blob, type: "image/jpeg" }) : reject(new Error("could not read that image"));
+          },
+          "image/jpeg",
+          0.82,
+        );
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error("that file is not an image the browser can read"));
+      };
+      img.src = url;
+    });
+  }
+
+  function pickPhoto(entryId) {
+    var input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.addEventListener("change", async function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      try {
+        status("Resizing…", "saving");
+        var out = await shrink(file);
+        await call("/api/entry/" + entryId + "/photo", {
+          method: "POST",
+          headers: { "content-type": out.type },
+          body: out.blob,
+        });
+        location.reload();
+      } catch (err) {
+        status("Not saved", "error");
+        alert("Could not add that photo.\n\n" + err.message);
+      }
+    });
+    input.click();
+  }
 
   window.addEventListener("beforeunload", function (e) {
     var el = document.activeElement;

@@ -1,3 +1,4 @@
+import { photosFor } from "./db";
 import type { Day, Leg, Note } from "./db";
 
 const esc = (s: string) =>
@@ -59,6 +60,31 @@ function entryControls(id: number, kind: string) {
   </div>`;
 }
 
+function renderPhotos(entryId: number, mode: Mode) {
+  const shots = photosFor(entryId);
+  if (!shots.length && !mode.edit) return "";
+
+  const figures = shots
+    .map((ph) => {
+      const cap = mode.edit
+        ? `${f(mode, `photo:${ph.id}:credit`, ph.credit, esc(ph.credit))} · ${f(mode, `photo:${ph.id}:license`, ph.license, esc(ph.license))}`
+        : ph.source
+          ? `<a href="${esc(ph.source)}" rel="noopener">${esc(ph.credit)}</a> · ${esc(ph.license)}`
+          : `${esc(ph.credit)} · ${esc(ph.license)}`;
+      return `<figure class="shot">
+        <img src="/photo/${ph.id}" alt="${esc(ph.alt)}" loading="lazy" decoding="async">
+        ${mode.edit ? `<button type="button" class="shot-del" data-photo="${ph.id}" title="Remove this photo">×</button>` : ""}
+        <figcaption>${mode.edit ? `<span class="cap-alt">Alt: ${f(mode, `photo:${ph.id}:alt`, ph.alt, esc(ph.alt))}</span>` : ""}${cap}</figcaption>
+      </figure>`;
+    })
+    .join("");
+
+  const add = mode.edit
+    ? `<button type="button" class="shot-add" data-id="${entryId}">+ Add photo</button>`
+    : "";
+  return `<div class="shots">${figures}${add}</div>`;
+}
+
 function renderDay(id: number, d: Day, mode: Mode) {
   const p = `entry:${id}`;
   const slots = d.slots
@@ -96,6 +122,7 @@ function renderDay(id: number, d: Day, mode: Mode) {
           ${chip}
           ${note}
         </div>
+        ${renderPhotos(id, mode)}
         <div class="slots">${slots}</div>
         ${mode.edit ? `<button type="button" class="slot-add" data-id="${id}">+ Add row</button>` : ""}
       </div>

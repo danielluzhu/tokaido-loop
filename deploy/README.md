@@ -38,3 +38,24 @@ curl -s localhost:4321/export/data.json > backup.json          # export
 curl -X POST localhost:4321/api/import -d @backup.json \
      -H 'content-type: application/json'                       # restore
 ```
+
+## Photos
+
+Images live in the `photos` table as blobs, served from `/photo/:id`. The
+seeded set came from Wikimedia Commons under open licences — credit and
+licence are stored per photo and printed under each image.
+
+```sh
+bun run scripts/fetch-photos.ts           # fill in any stop with no photo
+bun run scripts/fetch-photos.ts --force   # re-fetch everything
+```
+
+Commons throttles Bun's `fetch` but not `curl`, so the script shells out for
+the binary downloads.
+
+In `/edit`, "+ Add photo" on any day uploads your own. The browser resizes to
+1400px and re-encodes to JPEG before upload, because this box has no image
+library. Deletes are soft, so undo can bring a photo back.
+
+The artifact export inlines every photo as a `data:` URI — published artifacts
+run under a CSP that blocks external hosts, so `/photo/:id` would not load.

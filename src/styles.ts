@@ -238,6 +238,33 @@ h2{
   .from-note{margin-left:0;flex-basis:100%}
 }
 
+/* photos */
+.shots{display:flex;flex-direction:column;gap:12px;margin:0 0 18px}
+.shot{margin:0;position:relative}
+.shot img{
+  display:block;width:100%;aspect-ratio:3/2;object-fit:cover;
+  border-radius:3px;background:var(--surface-2);
+}
+.shot figcaption{
+  margin-top:6px;font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:10px;letter-spacing:.06em;color:var(--muted);line-height:1.6;
+}
+.shot figcaption a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.shot figcaption a:hover{color:var(--accent)}
+.cap-alt{display:block;color:var(--ink-soft)}
+.shot-del{
+  position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;
+  cursor:pointer;font-size:15px;line-height:1;
+  background:var(--surface);color:var(--ink-soft);border:1px solid var(--hairline);
+}
+.shot-del:hover{background:#c0392b;color:#fff;border-color:#c0392b}
+.shot-add{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;
+  letter-spacing:.1em;text-transform:uppercase;padding:7px 10px;border-radius:2px;cursor:pointer;
+  background:transparent;color:var(--muted);border:1px dashed var(--hairline);
+}
+.shot-add:hover{color:var(--accent);border-color:var(--accent)}
+
 /* ------------------------------------------------------------- editor --- */
 .toolbar{
   position:sticky;top:0;z-index:20;margin:-48px -24px 34px;padding:11px 24px;
@@ -307,5 +334,6 @@ h2{
   .toolbar{margin:-36px -16px 26px;padding:10px 16px}
 }
 @media (prefers-reduced-motion:reduce){.ctl{transition:none}}
-@media print{.toolbar,.ctl,.slot-add,.slot-del,.legend{display:none}}
+@media print{.toolbar,.ctl,.slot-add,.slot-del,.legend,.shot-add,.shot-del{display:none}}
+.shot img{break-inside:avoid}
 `;

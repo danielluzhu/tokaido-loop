@@ -1,4 +1,4 @@
-import { db, seedIfEmpty, exportDoc, getEntries, getNotes } from "./src/db";
+import { db, seedIfEmpty, exportDoc, getEntries, getNotes, photoBytes, restorePhotoState } from "./src/db";
 import { renderBody } from "./src/render";
 import { CSS } from "./src/styles";
 
@@ -35,6 +35,7 @@ function restore(doc: any) {
     (doc.notes ?? []).forEach((n: any, i: number) =>
       pn.run(n.id, (i + 1) * 100, JSON.stringify(n.data)),
     );
+    restorePhotoState(doc.photos ?? []);
   })();
 }
 
@@ -75,6 +76,13 @@ function applyField(path: string, value: string) {
       key,
       JSON.stringify(parsed),
     );
+    return;
+  }
+
+  if (root === "photo") {
+    const col = parts[2];
+    if (!["alt", "credit", "license"].includes(col)) throw new Error("bad photo field: " + col);
+    db.prepare(`UPDATE photos SET ${col} = ? WHERE id = ?`).run(value, Number(parts[1]));
     return;
   }
 
@@ -163,7 +171,19 @@ function artifactFragment() {
 
 <style>${CSS}</style>
 
-${renderBody(doc, { edit: false })}`;
+${inlinePhotos(renderBody(doc, { edit: false }))}`;
+}
+
+/**
+ * Artifacts run under a CSP that blocks every external host, so a published
+ * page cannot fetch /photo/N. Inline each one as a data URI instead.
+ */
+function inlinePhotos(html: string) {
+  return html.replace(/src="\/photo\/(\d+)"/g, (whole, id) => {
+    const row = photoBytes(Number(id));
+    if (!row) return whole;
+    return `src="data:${row.mime};base64,${Buffer.from(row.bytes).toString("base64")}"`;
+  });
 }
 
 /* -------------------------------------------------------------- routing --- */
@@ -196,6 +216,14 @@ const server = Bun.serve({
     if (p === "/") return html(page(false));
     if (p === "/edit") return html(page(true));
     if (p === "/editor.js") return new Response(Bun.file("/workspace/public/editor.js"));
+
+    if (p.startsWith("/photo/")) {
+      const row = photoBytes(Number(p.slice(7)));
+      if (!row) return new Response("Not found", { status: 404 });
+      return new Response(row.bytes, {
+        headers: { "content-type": row.mime, "cache-control": "public, max-age=86400" },
+      });
+    }
 
     if (p === "/export/data.json")
       return new Response(JSON.stringify(exportDoc(), null, 2), {
@@ -275,6 +303,28 @@ const server = Bun.serve({
           return Response.json({ ok: true });
         }
 
+        if (seg[0] === "api" && seg[1] === "entry" && seg[3] === "photo") {
+          const entryId = Number(seg[2]);
+          const bytes = new Uint8Array(await req.arrayBuffer());
+          const mime = req.headers.get("content-type") ?? "image/jpeg";
+          if (!/^image\/(jpeg|png|webp|gif)$/.test(mime)) return new Response("not an image", { status: 415 });
+          if (bytes.length > 6_000_000) return new Response("image too large", { status: 413 });
+          snapshot();
+          const max = db
+            .query<{ m: number }, [number]>("SELECT COALESCE(MAX(position),0) AS m FROM photos WHERE entry_id = ?")
+            .get(entryId)!.m;
+          db.prepare(
+            "INSERT INTO photos (entry_id, position, mime, bytes, alt, credit, license, source) VALUES (?,?,?,?,?,?,?,?)",
+          ).run(entryId, max + 1, mime, bytes, "", "Your photo", "", "");
+          return Response.json({ ok: true });
+        }
+
+        if (seg[0] === "api" && seg[1] === "photo" && seg[3] === "delete") {
+          snapshot();
+          db.prepare("UPDATE photos SET deleted = 1 WHERE id = ?").run(Number(seg[2]));
+          return Response.json({ ok: true });
+        }
+
         if (p === "/api/note") {
           snapshot();
           const max =
@@ -299,6 +349,10 @@ const server = Bun.serve({
             return Response.json({ ok: true });
           }
           if (action === "delete") {
+            // Hide the entry's photos rather than dropping them, so undo can
+            // bring the whole card back intact.
+            if (table === "entries")
+              db.prepare("UPDATE photos SET deleted = 1 WHERE entry_id = ?").run(id);
             db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
             return Response.json({ ok: true });
           }

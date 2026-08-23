@@ -2,7 +2,6 @@ import { Database } from "bun:sqlite";
 
 export const db = new Database(process.env.DB_PATH ?? "/workspace/itinerary.db");
 db.exec("PRAGMA journal_mode = WAL");
-db.exec("PRAGMA foreign_keys = ON");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
@@ -368,5 +367,69 @@ export function getNotes() {
 }
 
 export function exportDoc() {
-  return { settings: getSettings(), entries: getEntries(), notes: getNotes() };
+  return { settings: getSettings(), entries: getEntries(), notes: getNotes(), photos: photoState() };
+}
+
+/* -------------------------------------------------------------- photos --- */
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS photos (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id INTEGER NOT NULL,
+    position REAL NOT NULL DEFAULT 0,
+    mime     TEXT NOT NULL,
+    bytes    BLOB NOT NULL,
+    alt      TEXT NOT NULL DEFAULT '',
+    credit   TEXT NOT NULL DEFAULT '',
+    license  TEXT NOT NULL DEFAULT '',
+    source   TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS photos_entry ON photos (entry_id, position);
+`);
+
+// Deleting a photo is a soft delete: the undo stack stores row state but not
+// blobs, so the bytes have to survive for undo to be able to bring one back.
+if (!db.query<{ name: string }, []>("PRAGMA table_info(photos)").all().some((c) => c.name === "deleted")) {
+  db.exec("ALTER TABLE photos ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0");
+}
+
+export type Photo = {
+  id: number;
+  alt: string;
+  credit: string;
+  license: string;
+  source: string;
+};
+
+export function photosFor(entryId: number): Photo[] {
+  return db
+    .query<Photo, [number]>(
+      "SELECT id, alt, credit, license, source FROM photos WHERE entry_id = ? AND deleted = 0 ORDER BY position, id",
+    )
+    .all(entryId);
+}
+
+export function photoBytes(id: number) {
+  return db
+    .query<{ mime: string; bytes: Uint8Array }, [number]>(
+      "SELECT mime, bytes FROM photos WHERE id = ?",
+    )
+    .get(id);
+}
+
+/** Row state only -- blobs stay put, so undo is cheap. */
+export function photoState() {
+  return db
+    .query<any, []>(
+      "SELECT id, entry_id, position, alt, credit, license, source, deleted FROM photos",
+    )
+    .all();
+}
+
+export function restorePhotoState(rows: any[]) {
+  const up = db.prepare(
+    "UPDATE photos SET entry_id=?, position=?, alt=?, credit=?, license=?, source=?, deleted=? WHERE id=?",
+  );
+  for (const r of rows ?? [])
+    up.run(r.entry_id, r.position, r.alt, r.credit, r.license, r.source, r.deleted, r.id);
 }
