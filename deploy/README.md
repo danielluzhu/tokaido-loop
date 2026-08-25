@@ -90,3 +90,32 @@ bun run scripts/test-tools.ts
 **No auth on the endpoint.** Anyone who can reach the site can chat, and that
 spends your API budget. Fine while the port is private to you; lock it down
 before opening the port publicly.
+
+## Pushing to GitHub
+
+Two mechanisms, one pusher per commit:
+
+- **`tokaido-sync.timer`** — every 5 minutes: export content, commit if
+  anything moved, push if local is ahead. It suppresses the post-commit hook
+  for its own commits (`TOKAIDO_NO_PUSH=1`), because two pushers racing the
+  same commit gets one rejected on a stale ref. It also pushes when local is
+  ahead for any other reason, so a hook push that failed while offline is
+  picked up on the next tick.
+- **`.githooks/post-commit`** — pushes any manual commit immediately.
+  Backgrounded, so committing never blocks on the network and never fails if
+  the remote is unreachable. Tracked in the repo via `core.hooksPath`.
+
+```sh
+systemctl list-timers tokaido-sync      # when it next fires
+journalctl -u tokaido-sync -f           # what it did
+/workspace/scripts/sync.sh              # run one now
+git commit --no-verify                  # or TOKAIDO_NO_PUSH=1 to skip the hook
+```
+
+Content is exported to `data/` rather than tracking `itinerary.db`: a 3.5MB
+binary that rewrites on every keystroke makes for a fast-growing repo and
+useless diffs. `scripts/import-content.ts` rebuilds the database from `data/`,
+which is what makes the repo an actual backup — verified lossless.
+
+`itinerary.html` is generated and no longer tracked; it inlines every photo as
+a data URI, so it is ~5MB and rewrites on every content change.
