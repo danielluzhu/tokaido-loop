@@ -90,4 +90,3 @@ bun run scripts/test-tools.ts
 **No auth on the endpoint.** Anyone who can reach the site can chat, and that
 spends your API budget. Fine while the port is private to you; lock it down
 before opening the port publicly.
-# sync catch-up probe
