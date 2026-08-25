@@ -26,6 +26,96 @@ db.exec(`
   );
 `);
 
+/* --------------------------------------------------------------- trips --- */
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS trips (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug     TEXT NOT NULL UNIQUE,
+    title    TEXT NOT NULL,
+    created  TEXT NOT NULL,
+    position REAL NOT NULL DEFAULT 0
+  );
+`);
+
+// Everything used to be one implicit itinerary. Give each scoped table a
+// trip_id and adopt the existing rows into trip 1 so nothing is lost.
+for (const table of ["settings", "entries", "notes", "photos", "snapshots"]) {
+  const cols = db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === "trip_id")) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN trip_id INTEGER NOT NULL DEFAULT 1`);
+  }
+}
+// settings was keyed on `key` alone; it now needs (trip_id, key).
+if (
+  db.query<{ sql: string }, []>(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='settings'",
+  ).get()?.sql?.includes("key   TEXT PRIMARY KEY")
+) {
+  db.exec(`
+    CREATE TABLE settings_new (
+      trip_id INTEGER NOT NULL,
+      key     TEXT NOT NULL,
+      value   TEXT NOT NULL,
+      PRIMARY KEY (trip_id, key)
+    );
+    INSERT INTO settings_new (trip_id, key, value) SELECT trip_id, key, value FROM settings;
+    DROP TABLE settings;
+    ALTER TABLE settings_new RENAME TO settings;
+  `);
+}
+db.exec(`
+  CREATE INDEX IF NOT EXISTS entries_trip ON entries (trip_id, position);
+  CREATE INDEX IF NOT EXISTS notes_trip ON notes (trip_id, position);
+  CREATE INDEX IF NOT EXISTS snapshots_trip ON snapshots (trip_id, id);
+`);
+
+export type Trip = { id: number; slug: string; title: string; created: string };
+
+export function listTrips(): Trip[] {
+  return db
+    .query<Trip, []>("SELECT id, slug, title, created FROM trips ORDER BY position, id")
+    .all();
+}
+
+export function tripBySlug(slug: string): Trip | null {
+  return (
+    db
+      .query<Trip, [string]>("SELECT id, slug, title, created FROM trips WHERE slug = ?")
+      .get(slug) ?? null
+  );
+}
+
+export function tripCounts(tripId: number) {
+  const days = db
+    .query<{ c: number }, [number]>(
+      "SELECT COUNT(*) AS c FROM entries WHERE trip_id = ? AND kind = 'day'",
+    )
+    .get(tripId)!.c;
+  const photos = db
+    .query<{ c: number }, [number]>(
+      "SELECT COUNT(*) AS c FROM photos WHERE trip_id = ? AND deleted = 0",
+    )
+    .get(tripId)!.c;
+  return { days, photos };
+}
+
+/** URL-safe, unique, and stable enough to live in a bookmark. */
+export function slugify(title: string) {
+  const base =
+    title
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "trip";
+  let slug = base;
+  for (let n = 2; db.query("SELECT 1 FROM trips WHERE slug = ?").get(slug); n++) {
+    slug = `${base}-${n}`;
+  }
+  return slug;
+}
+
 export type Day = {
   daynum: string;
   city: string;
@@ -327,47 +417,138 @@ const SEED_NOTES: Note[] = [
 ];
 
 export function seedIfEmpty() {
-  const n = db.query<{ c: number }, []>("SELECT COUNT(*) AS c FROM entries").get()!.c;
+  const n = db.query<{ c: number }, []>("SELECT COUNT(*) AS c FROM trips").get()!.c;
   if (n > 0) return;
 
-  const putSetting = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
-  const putEntry = db.prepare("INSERT INTO entries (position, kind, data) VALUES (?, ?, ?)");
-  const putNote = db.prepare("INSERT INTO notes (position, data) VALUES (?, ?)");
+  const putSetting = db.prepare("INSERT OR REPLACE INTO settings (trip_id, key, value) VALUES (?, ?, ?)");
+  const putEntry = db.prepare("INSERT INTO entries (trip_id, position, kind, data) VALUES (?, ?, ?, ?)");
+  const putNote = db.prepare("INSERT INTO notes (trip_id, position, data) VALUES (?, ?, ?)");
 
   db.transaction(() => {
-    for (const [k, v] of Object.entries(SEED_SETTINGS)) putSetting.run(k, JSON.stringify(v));
-    SEED_ENTRIES.forEach((e, i) => putEntry.run((i + 1) * 100, e.kind, JSON.stringify(e.data)));
-    SEED_NOTES.forEach((nt, i) => putNote.run((i + 1) * 100, JSON.stringify(nt)));
+    // Adopt any pre-multi-trip rows, which the migration defaulted to trip 1.
+    const orphans = db.query<{ c: number }, []>("SELECT COUNT(*) AS c FROM entries").get()!.c;
+    db.prepare("INSERT INTO trips (id, slug, title, created, position) VALUES (1, ?, ?, ?, 0)").run(
+      "tokaido-loop",
+      "Tokaido Loop",
+      new Date().toISOString(),
+    );
+    if (orphans > 0) return;
+
+    for (const [k, v] of Object.entries(SEED_SETTINGS)) putSetting.run(1, k, JSON.stringify(v));
+    SEED_ENTRIES.forEach((e, i) => putEntry.run(1, (i + 1) * 100, e.kind, JSON.stringify(e.data)));
+    SEED_NOTES.forEach((nt, i) => putNote.run(1, (i + 1) * 100, JSON.stringify(nt)));
   })();
+}
+
+/** A new trip starts with just enough structure to show what goes where. */
+export function createTrip(title: string, where = "") {
+  const slug = slugify(title);
+  const created = new Date().toISOString();
+  const id = Number(
+    db
+      .prepare("INSERT INTO trips (slug, title, created, position) VALUES (?, ?, ?, ?)")
+      .run(
+        slug,
+        title,
+        created,
+        db.query<{ m: number }, []>("SELECT COALESCE(MAX(position),0) AS m FROM trips").get()!.m + 100,
+      ).lastInsertRowid,
+  );
+
+  const settings: Record<string, unknown> = {
+    eyebrow: where ? `A trip to ${where}` : "A new trip",
+    title,
+    standfirst:
+      "Nothing here yet. Click any text to rewrite it, or open the chat and describe the trip you have in mind.",
+    route: where ? [{ name: where, back: false }] : [{ name: "First stop", back: false }],
+    stats: [
+      { label: "Nights", value: "—" },
+      { label: "Hotels", value: "—" },
+      { label: "Getting there", value: "—" },
+      { label: "Longest leg", value: "—" },
+    ],
+    notesHeading: "Before you book",
+    caveat:
+      "**Check anything you are about to book.** Fares, times and opening hours change, and everything here is a planning figure rather than a quote.",
+  };
+
+  const day = {
+    daynum: "Day 01",
+    city: where || "First stop",
+    chip: { kind: "arrive", label: "Arrive" },
+    dot: "arrive",
+    fromNote: "",
+    slots: [
+      { label: "Arrive", body: "How you get there — flight, train, time of day." },
+      { label: "Do", body: "What this day is for." },
+      { label: "Stay", body: "Where you are sleeping." },
+    ],
+  };
+
+  db.transaction(() => {
+    const ps = db.prepare("INSERT INTO settings (trip_id, key, value) VALUES (?, ?, ?)");
+    for (const [k, v] of Object.entries(settings)) ps.run(id, k, JSON.stringify(v));
+    db.prepare("INSERT INTO entries (trip_id, position, kind, data) VALUES (?, ?, ?, ?)").run(
+      id, 100, "day", JSON.stringify(day),
+    );
+  })();
+
+  return { id, slug, title, created };
+}
+
+export function deleteTrip(id: number) {
+  db.transaction(() => {
+    for (const t of ["settings", "entries", "notes", "photos", "snapshots"])
+      db.prepare(`DELETE FROM ${t} WHERE trip_id = ?`).run(id);
+    db.prepare("DELETE FROM trips WHERE id = ?").run(id);
+  })();
+}
+
+export function renameTrip(id: number, title: string) {
+  db.prepare("UPDATE trips SET title = ? WHERE id = ?").run(title, id);
+  db.prepare("INSERT OR REPLACE INTO settings (trip_id, key, value) VALUES (?, 'title', ?)").run(
+    id, JSON.stringify(title),
+  );
 }
 
 /* ---------------------------------------------------------------- read --- */
 
-export function getSettings(): Record<string, any> {
-  const rows = db.query<{ key: string; value: string }, []>("SELECT key, value FROM settings").all();
+export function getSettings(tripId: number): Record<string, any> {
+  const rows = db
+    .query<{ key: string; value: string }, [number]>(
+      "SELECT key, value FROM settings WHERE trip_id = ?",
+    )
+    .all(tripId);
   const out: Record<string, any> = {};
   for (const r of rows) out[r.key] = JSON.parse(r.value);
   return out;
 }
 
-export function getEntries() {
+export function getEntries(tripId: number) {
   return db
-    .query<{ id: number; kind: string; data: string }, []>(
-      "SELECT id, kind, data FROM entries ORDER BY position",
+    .query<{ id: number; kind: string; data: string }, [number]>(
+      "SELECT id, kind, data FROM entries WHERE trip_id = ? ORDER BY position",
     )
-    .all()
+    .all(tripId)
     .map((r) => ({ id: r.id, kind: r.kind as "day" | "leg", data: JSON.parse(r.data) }));
 }
 
-export function getNotes() {
+export function getNotes(tripId: number) {
   return db
-    .query<{ id: number; data: string }, []>("SELECT id, data FROM notes ORDER BY position")
-    .all()
+    .query<{ id: number; data: string }, [number]>(
+      "SELECT id, data FROM notes WHERE trip_id = ? ORDER BY position",
+    )
+    .all(tripId)
     .map((r) => ({ id: r.id, data: JSON.parse(r.data) as Note }));
 }
 
-export function exportDoc() {
-  return { settings: getSettings(), entries: getEntries(), notes: getNotes(), photos: photoState() };
+export function exportDoc(tripId: number) {
+  return {
+    settings: getSettings(tripId),
+    entries: getEntries(tripId),
+    notes: getNotes(tripId),
+    photos: photoState(tripId),
+  };
 }
 
 /* -------------------------------------------------------------- photos --- */
@@ -418,12 +599,12 @@ export function photoBytes(id: number) {
 }
 
 /** Row state only -- blobs stay put, so undo is cheap. */
-export function photoState() {
+export function photoState(tripId: number) {
   return db
-    .query<any, []>(
-      "SELECT id, entry_id, position, alt, credit, license, source, deleted FROM photos",
+    .query<any, [number]>(
+      "SELECT id, entry_id, position, alt, credit, license, source, deleted FROM photos WHERE trip_id = ?",
     )
-    .all();
+    .all(tripId);
 }
 
 export function restorePhotoState(rows: any[]) {
