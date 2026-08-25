@@ -25,6 +25,8 @@
         "back": true
       }
     ],
+    "notesHeading": "Before you book",
+    "caveat": "**Two things to verify yourself.** Fares and opening hours here are approximate and change — treat them as planning figures, not bookings. And confirm the owl cafe directly before you build Saturday around it: small animal cafes open, move, and close often, and I can't check its current status from here.",
     "stats": [
       {
         "label": "Nights",
@@ -36,15 +38,13 @@
       },
       {
         "label": "Rail + air",
-        "value": "≈ ¥46k"
+        "value": "≈ ¥47k"
       },
       {
         "label": "Longest leg",
         "value": "2h30"
       }
-    ],
-    "notesHeading": "Before you book",
-    "caveat": "**Two things to verify yourself.** Fares and opening hours here are approximate and change — treat them as planning figures, not bookings. And confirm the owl cafe directly before you build Saturday around it: small animal cafes open, move, and close often, and I can't check its current status from here."
+    ]
   },
   "entries": [
     {
