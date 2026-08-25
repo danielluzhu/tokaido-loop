@@ -35,10 +35,16 @@ const photos = (doc.photos as any[]).map((p) => {
   return { ...p, mime: row?.mime ?? "image/jpeg", file: `photos/${String(p.id).padStart(3, "0")}.${ext(row?.mime ?? "")}` };
 });
 
-// Stable key order so the JSON does not churn between runs.
+// Sort the setting keys. SQLite returns rows in physical order, and
+// INSERT OR REPLACE moves an edited key to the end of the table -- without
+// this, changing one value reshuffles the whole object and buries the real
+// change in diff noise.
+const settings: Record<string, unknown> = {};
+for (const k of Object.keys(doc.settings).sort()) settings[k] = doc.settings[k];
+
 writeFileSync(
   `${ROOT}/itinerary.json`,
-  JSON.stringify({ settings: doc.settings, entries: doc.entries, notes: doc.notes, photos }, null, 2) + "\n",
+  JSON.stringify({ settings, entries: doc.entries, notes: doc.notes, photos }, null, 2) + "\n",
 );
 
 console.log(`exported ${doc.entries.length} entries, ${doc.notes.length} notes, ${rows.length} photos`);

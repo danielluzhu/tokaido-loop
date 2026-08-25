@@ -1,8 +1,8 @@
 {
   "settings": {
+    "caveat": "**Two things to verify yourself.** Fares and opening hours here are approximate and change — treat them as planning figures, not bookings. And confirm the owl cafe directly before you build Saturday around it: small animal cafes open, move, and close often, and I can't check its current status from here.",
     "eyebrow": "Eight days · Four cities · One loop west",
-    "title": "Tokaido Loop",
-    "standfirst": "Tokyo out to Fukuoka, back east through Osaka and Shizuoka. Built from your Notes table — the weekdays you'd written line up exactly, and *Osaka lands on the empty Sunday* between them.",
+    "notesHeading": "Before you book",
     "route": [
       {
         "name": "Shinagawa",
@@ -25,8 +25,7 @@
         "back": true
       }
     ],
-    "notesHeading": "Before you book",
-    "caveat": "**Two things to verify yourself.** Fares and opening hours here are approximate and change — treat them as planning figures, not bookings. And confirm the owl cafe directly before you build Saturday around it: small animal cafes open, move, and close often, and I can't check its current status from here.",
+    "standfirst": "Tokyo out to Fukuoka, back east through Osaka and Shizuoka. Built from your Notes table — the weekdays you'd written line up exactly, and *Osaka lands on the empty Sunday* between them.",
     "stats": [
       {
         "label": "Nights",
@@ -44,7 +43,8 @@
         "label": "Longest leg",
         "value": "2h30"
       }
-    ]
+    ],
+    "title": "Tokaido Loop"
   },
   "entries": [
     {
