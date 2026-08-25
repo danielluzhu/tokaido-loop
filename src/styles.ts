@@ -265,6 +265,79 @@ h2{
 }
 .shot-add:hover{color:var(--accent);border-color:var(--accent)}
 
+/* --------------------------------------------------------------- chat --- */
+.chat-launch{
+  position:fixed;right:16px;bottom:16px;z-index:40;
+  width:46px;height:46px;border-radius:50%;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;
+  background:var(--accent);color:#fff;border:none;
+  box-shadow:0 2px 6px rgba(20,32,58,.18),0 10px 26px -10px rgba(20,32,58,.4);
+}
+.chat-launch:hover{filter:brightness(1.07)}
+.chat-launch:focus-visible{outline:2px solid var(--rail);outline-offset:3px}
+
+.chat-dock{
+  position:fixed;right:0;top:0;bottom:0;z-index:41;width:min(420px,100vw);
+  display:flex;flex-direction:column;
+  background:var(--surface);border-left:1px solid var(--hairline);
+  box-shadow:-14px 0 40px -22px rgba(20,32,58,.5);
+}
+.chat-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 16px;border-bottom:1px solid var(--hairline);
+}
+.chat-title{
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:700;font-size:14px;letter-spacing:.01em;color:var(--ink);
+}
+.chat-close{
+  width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:17px;line-height:1;
+  background:transparent;color:var(--muted);border:1px solid transparent;
+}
+.chat-close:hover{color:var(--ink);border-color:var(--hairline)}
+
+.chat-log{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:11px}
+.bubble{
+  max-width:88%;padding:9px 13px;border-radius:4px;font-size:15px;line-height:1.55;
+  white-space:pre-wrap;overflow-wrap:anywhere;
+}
+.bubble.me{align-self:flex-end;background:var(--rail);color:#fff}
+.bubble.bot{align-self:flex-start;background:var(--surface-2);color:var(--ink)}
+.bubble.note{
+  align-self:stretch;max-width:none;background:transparent;color:var(--muted);
+  border:1px dashed var(--hairline);font-size:13.5px;
+}
+.tool-line{
+  align-self:flex-start;font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:11px;letter-spacing:.05em;color:var(--accent);
+  padding-left:11px;border-left:2px solid var(--accent);
+}
+.chat-status{
+  padding:0 16px;min-height:18px;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;
+  letter-spacing:.07em;color:var(--muted);
+}
+.chat-form{display:flex;gap:8px;align-items:flex-end;padding:12px 16px 16px}
+.chat-form textarea{
+  flex:1;resize:none;font:inherit;font-size:15px;line-height:1.5;
+  padding:9px 11px;border-radius:4px;
+  background:var(--ground);color:var(--ink);border:1px solid var(--hairline);
+}
+.chat-form textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.chat-send{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;
+  letter-spacing:.09em;text-transform:uppercase;padding:10px 13px;border-radius:3px;
+  cursor:pointer;background:var(--accent);color:#fff;border:none;
+}
+.chat-send:hover:not(:disabled){filter:brightness(1.07)}
+.chat-send:disabled{opacity:.45;cursor:default}
+body.chat-open .chat-launch{display:none}
+
+@media (max-width:640px){
+  .chat-dock{width:100vw}
+}
+@media print{.chat-launch,.chat-dock{display:none}}
+
 /* ------------------------------------------------------------- editor --- */
 .toolbar{
   position:sticky;top:0;z-index:20;margin:-48px -24px 34px;padding:11px 24px;

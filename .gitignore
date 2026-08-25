@@ -4,3 +4,4 @@ IMG_*.jpg
 itinerary.db
 itinerary.db-wal
 itinerary.db-shm
+node_modules

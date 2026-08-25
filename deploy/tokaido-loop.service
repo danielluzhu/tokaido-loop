@@ -10,6 +10,8 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=/workspace
 Environment=PORT=4321
+# Optional; the chat bot is disabled gracefully when absent.
+EnvironmentFile=-/etc/tokaido-loop.env
 ExecStart=/home/ubuntu/.bun/bin/bun run /workspace/server.ts
 
 Restart=always

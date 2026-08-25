@@ -59,3 +59,34 @@ library. Deletes are soft, so undo can bring a photo back.
 
 The artifact export inlines every photo as a `data:` URI — published artifacts
 run under a CSP that blocks external hosts, so `/photo/:id` would not load.
+
+## Chat bot
+
+`/api/chat` runs a Claude tool-use loop whose tools mutate the itinerary
+through `src/store.ts` — the same code path the HTTP editing API uses, so
+chat edits land on the same undo stack. Model: `claude-opus-5`, adaptive
+thinking, streamed to the browser over SSE.
+
+It needs an Anthropic API key. Without one the dock still opens and says so;
+nothing else breaks.
+
+```sh
+sudo sh -c 'echo "ANTHROPIC_API_KEY=sk-ant-..." > /etc/tokaido-loop.env'
+sudo chmod 600 /etc/tokaido-loop.env
+sudo systemctl restart tokaido-loop
+curl -s localhost:4321/api/chat/status     # {"ready":true}
+```
+
+The file is root-owned and read by systemd before it drops to the `ubuntu`
+user, so the key is never in a user-readable file. `EnvironmentFile` is
+prefixed with `-`, so a missing file is not an error.
+
+Test the tools without spending API calls:
+
+```sh
+bun run scripts/test-tools.ts
+```
+
+**No auth on the endpoint.** Anyone who can reach the site can chat, and that
+spends your API budget. Fine while the port is private to you; lock it down
+before opening the port publicly.

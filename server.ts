@@ -1,6 +1,11 @@
-import { db, seedIfEmpty, exportDoc, getEntries, getNotes, photoBytes, restorePhotoState } from "./src/db";
+import { db, seedIfEmpty, exportDoc, photoBytes } from "./src/db";
 import { renderBody } from "./src/render";
 import { CSS } from "./src/styles";
+import {
+  addEntry, addNote, addSlot, applyField, deleteEntry, deleteNote, deleteSlot,
+  restore, shift, snapshot, undo,
+} from "./src/store";
+import { chat, hasCredentials } from "./src/chat";
 
 seedIfEmpty();
 
@@ -8,97 +13,6 @@ const PORT = Number(process.env.PORT ?? 4321);
 const FAVICON =
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">` +
   `<text y="26" font-size="26">🚅</text></svg>`;
-
-/* ------------------------------------------------------------- history --- */
-
-function snapshot() {
-  db.prepare("INSERT INTO snapshots (taken, payload) VALUES (?, ?)").run(
-    new Date().toISOString(),
-    JSON.stringify(exportDoc()),
-  );
-  // Keep the last 50; this is an undo stack, not an archive.
-  db.exec(
-    "DELETE FROM snapshots WHERE id NOT IN (SELECT id FROM snapshots ORDER BY id DESC LIMIT 50)",
-  );
-}
-
-function restore(doc: any) {
-  db.transaction(() => {
-    db.exec("DELETE FROM entries; DELETE FROM notes; DELETE FROM settings");
-    const ps = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)");
-    for (const [k, v] of Object.entries(doc.settings ?? {})) ps.run(k, JSON.stringify(v));
-    const pe = db.prepare("INSERT INTO entries (id, position, kind, data) VALUES (?, ?, ?, ?)");
-    (doc.entries ?? []).forEach((e: any, i: number) =>
-      pe.run(e.id, (i + 1) * 100, e.kind, JSON.stringify(e.data)),
-    );
-    const pn = db.prepare("INSERT INTO notes (id, position, data) VALUES (?, ?, ?)");
-    (doc.notes ?? []).forEach((n: any, i: number) =>
-      pn.run(n.id, (i + 1) * 100, JSON.stringify(n.data)),
-    );
-    restorePhotoState(doc.photos ?? []);
-  })();
-}
-
-/* --------------------------------------------------------------- paths --- */
-
-function setIn(obj: any, path: string[], value: string) {
-  let cur = obj;
-  for (let i = 0; i < path.length - 1; i++) {
-    const k: any = /^\d+$/.test(path[i]) ? Number(path[i]) : path[i];
-    if (cur[k] === undefined || cur[k] === null) cur[k] = /^\d+$/.test(path[i + 1]) ? [] : {};
-    cur = cur[k];
-  }
-  const last: any = /^\d+$/.test(path[path.length - 1])
-    ? Number(path[path.length - 1])
-    : path[path.length - 1];
-  cur[last] = value;
-}
-
-function applyField(path: string, value: string) {
-  const parts = path.split(":");
-  const [root] = parts;
-
-  if (root === "setting") {
-    const key = parts[1];
-    const row = db
-      .query<{ value: string }, [string]>("SELECT value FROM settings WHERE key = ?")
-      .get(key);
-    if (parts.length === 2) {
-      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(
-        key,
-        JSON.stringify(value),
-      );
-      return;
-    }
-    const parsed = row ? JSON.parse(row.value) : {};
-    setIn(parsed, parts.slice(2), value);
-    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(
-      key,
-      JSON.stringify(parsed),
-    );
-    return;
-  }
-
-  if (root === "photo") {
-    const col = parts[2];
-    if (!["alt", "credit", "license"].includes(col)) throw new Error("bad photo field: " + col);
-    db.prepare(`UPDATE photos SET ${col} = ? WHERE id = ?`).run(value, Number(parts[1]));
-    return;
-  }
-
-  const table = root === "entry" ? "entries" : root === "note" ? "notes" : null;
-  if (!table) throw new Error("unknown field path: " + path);
-
-  const id = Number(parts[1]);
-  const row = db
-    .query<{ data: string }, [number]>(`SELECT data FROM ${table} WHERE id = ?`)
-    .get(id);
-  if (!row) throw new Error("no such " + root + ": " + id);
-
-  const data = JSON.parse(row.data);
-  setIn(data, parts.slice(2), value);
-  db.prepare(`UPDATE ${table} SET data = ? WHERE id = ?`).run(JSON.stringify(data), id);
-}
 
 /* --------------------------------------------------------------- pages --- */
 
@@ -157,6 +71,7 @@ ${body}
   })();
 </script>
 ${edit ? '<script src="/editor.js"></script>' : ""}
+<script src="/chat.js"></script>
 </body>
 </html>`;
 }
@@ -193,17 +108,6 @@ const html = (s: string) =>
     headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" },
   });
 
-const shift = (table: "entries" | "notes", id: number, dir: string) => {
-  const rows = db
-    .query<{ id: number; position: number }, []>(`SELECT id, position FROM ${table} ORDER BY position`)
-    .all();
-  const i = rows.findIndex((r) => r.id === id);
-  const j = dir === "up" ? i - 1 : i + 1;
-  if (i < 0 || j < 0 || j >= rows.length) return;
-  db.prepare(`UPDATE ${table} SET position = ? WHERE id = ?`).run(rows[j].position, rows[i].id);
-  db.prepare(`UPDATE ${table} SET position = ? WHERE id = ?`).run(rows[i].position, rows[j].id);
-};
-
 const server = Bun.serve({
   port: PORT,
   hostname: "0.0.0.0",
@@ -216,6 +120,8 @@ const server = Bun.serve({
     if (p === "/") return html(page(false));
     if (p === "/edit") return html(page(true));
     if (p === "/editor.js") return new Response(Bun.file("/workspace/public/editor.js"));
+    if (p === "/chat.js") return new Response(Bun.file("/workspace/public/chat.js"));
+    if (p === "/api/chat/status") return Response.json({ ready: hasCredentials() });
 
     if (p.startsWith("/photo/")) {
       const row = photoBytes(Number(p.slice(7)));
@@ -247,6 +153,41 @@ const server = Bun.serve({
         },
       });
 
+    if (m === "POST" && p === "/api/chat") {
+      if (!hasCredentials())
+        return Response.json(
+          { error: "No API key configured. See deploy/README.md." },
+          { status: 503 },
+        );
+
+      const { messages } = (await req.json()) as { messages: any[] };
+      if (!Array.isArray(messages) || !messages.length)
+        return new Response("no messages", { status: 400 });
+
+      // Server-sent events, so the reply streams in as it is written.
+      const encoder = new TextEncoder();
+      const body = new ReadableStream({
+        async start(controller) {
+          const send = (e: unknown) =>
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(e)}\n\n`));
+          try {
+            for await (const event of chat(messages)) send(event);
+          } catch (err: any) {
+            send({ type: "error", message: err?.message ?? "stream failed" });
+          } finally {
+            controller.close();
+          }
+        },
+      });
+      return new Response(body, {
+        headers: {
+          "content-type": "text/event-stream",
+          "cache-control": "no-cache",
+          connection: "keep-alive",
+        },
+      });
+    }
+
     try {
       if (m === "PUT" && p === "/api/field") {
         const { path, value } = (await req.json()) as { path: string; value: string };
@@ -259,48 +200,14 @@ const server = Bun.serve({
         const seg = p.split("/").filter(Boolean); // api / entry / :id / action ...
 
         if (p === "/api/undo") {
-          const snap = db
-            .query<{ id: number; payload: string }, []>(
-              "SELECT id, payload FROM snapshots ORDER BY id DESC LIMIT 1",
-            )
-            .get();
-          if (!snap) return Response.json({ ok: false, reason: "nothing to undo" }, { status: 400 });
-          restore(JSON.parse(snap.payload));
-          db.prepare("DELETE FROM snapshots WHERE id = ?").run(snap.id);
+          if (!undo()) return Response.json({ ok: false, reason: "nothing to undo" }, { status: 400 });
           return Response.json({ ok: true });
         }
 
         if (p === "/api/entry") {
           const { kind, after } = (await req.json()) as { kind: "day" | "leg"; after?: string };
           snapshot();
-          const rows = getEntries();
-          const idx = rows.findIndex((r) => String(r.id) === String(after));
-          const posRow = db
-            .query<{ position: number }, []>("SELECT position FROM entries ORDER BY position")
-            .all();
-          const cur = idx >= 0 ? posRow[idx].position : 0;
-          const next = idx >= 0 && posRow[idx + 1] ? posRow[idx + 1].position : cur + 200;
-          const data =
-            kind === "day"
-              ? {
-                  daynum: "Day 00 · Day",
-                  city: "New stop",
-                  chip: { kind: "stay", label: "Same hotel" },
-                  dot: "plain",
-                  fromNote: "",
-                  slots: [
-                    { label: "Arrive", body: "How you get there." },
-                    { label: "Do", body: "What to do." },
-                    { label: "Stay", body: "Where to sleep." },
-                  ],
-                }
-              : { glyph: "▮", title: "A → B", meta: "Train · 0h00 · ¥0", note: "How this leg works." };
-          db.prepare("INSERT INTO entries (position, kind, data) VALUES (?, ?, ?)").run(
-            (cur + next) / 2,
-            kind,
-            JSON.stringify(data),
-          );
-          return Response.json({ ok: true });
+          return Response.json({ ok: true, id: addEntry(kind, after) });
         }
 
         if (seg[0] === "api" && seg[1] === "entry" && seg[3] === "photo") {
@@ -327,13 +234,7 @@ const server = Bun.serve({
 
         if (p === "/api/note") {
           snapshot();
-          const max =
-            db.query<{ m: number }, []>("SELECT COALESCE(MAX(position),0) AS m FROM notes").get()!.m;
-          db.prepare("INSERT INTO notes (position, data) VALUES (?, ?)").run(
-            max + 100,
-            JSON.stringify({ heading: "New note", body: "Something worth remembering." }),
-          );
-          return Response.json({ ok: true });
+          return Response.json({ ok: true, id: addNote() });
         }
 
         // /api/entry/:id/...  and  /api/note/:id/...
@@ -349,25 +250,13 @@ const server = Bun.serve({
             return Response.json({ ok: true });
           }
           if (action === "delete") {
-            // Hide the entry's photos rather than dropping them, so undo can
-            // bring the whole card back intact.
-            if (table === "entries")
-              db.prepare("UPDATE photos SET deleted = 1 WHERE entry_id = ?").run(id);
-            db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
+            if (table === "entries") deleteEntry(id);
+            else deleteNote(id);
             return Response.json({ ok: true });
           }
           if (action === "slot") {
-            const row = db
-              .query<{ data: string }, [number]>("SELECT data FROM entries WHERE id = ?")
-              .get(id);
-            if (!row) return new Response("no such entry", { status: 404 });
-            const data = JSON.parse(row.data);
-            if (seg[4] !== undefined && seg[5] === "delete") {
-              data.slots.splice(Number(seg[4]), 1);
-            } else {
-              (data.slots ??= []).push({ label: "Note", body: "…" });
-            }
-            db.prepare("UPDATE entries SET data = ? WHERE id = ?").run(JSON.stringify(data), id);
+            if (seg[4] !== undefined && seg[5] === "delete") deleteSlot(id, Number(seg[4]));
+            else addSlot(id);
             return Response.json({ ok: true });
           }
         }
