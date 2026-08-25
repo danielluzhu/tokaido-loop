@@ -1,4 +1,5 @@
 (function () {
+  var API = "/t/" + (window.TRIP || "") + "/api";
   var statusEl = document.getElementById("status");
   var timer;
 
@@ -47,7 +48,7 @@
       if (!el) return;
       var value = el.textContent;
       if (value === el.dataset.before) return;
-      await call("/api/field", {
+      await call(API + "/field", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ path: el.dataset.path, value: value }),
@@ -89,12 +90,12 @@
     if (ctl && ctl.dataset.id) {
       var id = ctl.dataset.id;
       var act = btn.dataset.act;
-      if (act === "up" || act === "down") return mutate("/api/entry/" + id + "/move", { dir: act });
-      if (act === "addday") return mutate("/api/entry", { kind: "day", after: id });
-      if (act === "addleg") return mutate("/api/entry", { kind: "leg", after: id });
+      if (act === "up" || act === "down") return mutate(API + "/entry/" + id + "/move", { dir: act });
+      if (act === "addday") return mutate(API + "/entry", { kind: "day", after: id });
+      if (act === "addleg") return mutate(API + "/entry", { kind: "leg", after: id });
       if (act === "del") {
         if (!confirm("Delete this entry? Undo will bring it back.")) return;
-        return mutate("/api/entry/" + id + "/delete");
+        return mutate(API + "/entry/" + id + "/delete");
       }
     }
 
@@ -102,16 +103,16 @@
       var nid = ctl.dataset.noteId;
       var a = btn.dataset.act;
       if (a === "noteup" || a === "notedown")
-        return mutate("/api/note/" + nid + "/move", { dir: a === "noteup" ? "up" : "down" });
+        return mutate(API + "/note/" + nid + "/move", { dir: a === "noteup" ? "up" : "down" });
       if (a === "notedel") {
         if (!confirm("Delete this note card? Undo will bring it back.")) return;
-        return mutate("/api/note/" + nid + "/delete");
+        return mutate(API + "/note/" + nid + "/delete");
       }
     }
 
     if (btn.classList.contains("shot-del")) {
       if (!confirm("Remove this photo? Undo will bring it back.")) return;
-      return mutate("/api/photo/" + btn.dataset.photo + "/delete");
+      return mutate(API + "/photo/" + btn.dataset.photo + "/delete");
     }
 
     if (btn.classList.contains("shot-add")) {
@@ -120,24 +121,34 @@
     }
 
     if (btn.classList.contains("slot-add")) {
-      if (btn.id === "add-note") return mutate("/api/note");
-      return mutate("/api/entry/" + btn.dataset.id + "/slot");
+      if (btn.id === "add-note") return mutate(API + "/note");
+      return mutate(API + "/entry/" + btn.dataset.id + "/slot");
     }
     if (btn.classList.contains("slot-del")) {
       if (!confirm("Remove this row?")) return;
-      return mutate("/api/entry/" + btn.dataset.id + "/slot/" + btn.dataset.slot + "/delete");
+      return mutate(API + "/entry/" + btn.dataset.id + "/slot/" + btn.dataset.slot + "/delete");
     }
 
-    if (btn.id === "undo") return mutate("/api/undo");
+    if (btn.id === "undo") return mutate(API + "/undo");
+
+    if (btn.id === "trip-delete") {
+      if (!confirm("Delete this whole trip? This cannot be undone.")) return;
+      var f = document.createElement("form");
+      f.method = "post";
+      f.action = "/t/" + window.TRIP + "/delete";
+      document.body.appendChild(f);
+      f.submit();
+      return;
+    }
 
     if (btn.id === "export") {
       var choice = prompt(
         "Export as:\n  1  JSON backup\n  2  Standalone HTML page\n  3  Artifact fragment (to re-publish)",
         "1",
       );
-      if (choice === "1") location.href = "/export/data.json";
-      else if (choice === "2") location.href = "/export/page.html";
-      else if (choice === "3") location.href = "/export/artifact.html";
+      if (choice === "1") location.href = "/t/" + window.TRIP + "/export/data.json";
+      else if (choice === "2") location.href = "/t/" + window.TRIP + "/export/page.html";
+      else if (choice === "3") location.href = "/t/" + window.TRIP + "/export/artifact.html";
     }
   });
 
@@ -186,7 +197,7 @@
       try {
         status("Resizing…", "saving");
         var out = await shrink(file);
-        await call("/api/entry/" + entryId + "/photo", {
+        await call(API + "/entry/" + entryId + "/photo", {
           method: "POST",
           headers: { "content-type": out.type },
           body: out.blob,

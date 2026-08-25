@@ -180,7 +180,8 @@ const TOOLBAR = `<div class="toolbar">
   <span class="spacer"></span>
   <button type="button" class="btn" id="undo">Undo</button>
   <button type="button" class="btn" id="export">Export</button>
-  <a class="btn primary" href="/">Done</a>
+  <button type="button" class="btn danger" id="trip-delete">Delete trip</button>
+  <a class="btn primary" href="." id="done">Done</a>
 </div>
 <div class="legend">
   <span><b>**bold**</b></span>
@@ -249,5 +250,49 @@ ${notes}
     </div>
   </section>
 
+</div>`;
+}
+
+
+/* -------------------------------------------------------------- index --- */
+
+export function renderIndex(
+  trips: { slug: string; title: string; created: string; days: number; photos: number }[],
+) {
+  const cards = trips
+    .map((t) => {
+      const when = new Date(t.created).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+      const bits = [
+        `${t.days} ${t.days === 1 ? "day" : "days"}`,
+        t.photos ? `${t.photos} ${t.photos === 1 ? "photo" : "photos"}` : null,
+      ].filter(Boolean);
+      return `<a class="trip-card" href="/t/${esc(t.slug)}">
+        <span class="trip-name">${esc(t.title)}</span>
+        <span class="trip-meta">${bits.join(" · ")}</span>
+        <span class="trip-date">Started ${esc(when)}</span>
+      </a>`;
+    })
+    .join("");
+
+  return `<div class="wrap index">
+  <header class="masthead">
+    <p class="eyebrow">Itineraries</p>
+    <h1>Trips</h1>
+    <p class="standfirst">Every trip is its own page — edit it in place, or tell the assistant what to change.</p>
+  </header>
+
+  <div class="trip-grid">
+    ${cards || '<p class="empty">No trips yet. Start one below.</p>'}
+    <form class="trip-new" method="post" action="/api/trip">
+      <span class="new-label">Start a new trip</span>
+      <input name="title" placeholder="Trip name — e.g. Portugal in spring" required maxlength="80" autocomplete="off">
+      <input name="where" placeholder="First stop (optional)" maxlength="60" autocomplete="off">
+      <button type="submit" class="btn primary">Create</button>
+    </form>
+  </div>
 </div>`;
 }

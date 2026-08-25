@@ -1,9 +1,12 @@
-import { db, seedIfEmpty, exportDoc, photoBytes } from "./src/db";
-import { renderBody } from "./src/render";
+import {
+  createTrip, db, deleteTrip, exportDoc, listTrips, photoBytes, renameTrip,
+  seedIfEmpty, tripBySlug, tripCounts,
+} from "./src/db";
+import { renderBody, renderIndex } from "./src/render";
 import { CSS } from "./src/styles";
 import {
   addEntry, addNote, addSlot, applyField, deleteEntry, deleteNote, deleteSlot,
-  restore, shift, snapshot, undo,
+  restore, shift, snapshot, undo, withSnapshot,
 } from "./src/store";
 import { chat, hasCredentials } from "./src/chat";
 
@@ -16,11 +19,8 @@ const FAVICON =
 
 /* --------------------------------------------------------------- pages --- */
 
-function page(edit: boolean) {
-  const doc = exportDoc();
-  const body = renderBody(doc, { edit });
-  const title = doc.settings.title ?? "Itinerary";
-
+/** One HTML skeleton for both the index and a trip page. */
+function shell(title: string, body: string, trip: { slug: string } | null, edit = false) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -28,7 +28,7 @@ function page(edit: boolean) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent(FAVICON)}">
-<title>${title}${edit ? " — editing" : ""}</title>
+<title>${title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -45,15 +45,12 @@ function page(edit: boolean) {
 </style>
 </head>
 <body>
-${
-  edit
-    ? ""
-    : `<div class="corner">
-  <a href="/edit" title="Edit this itinerary" aria-label="Edit this itinerary">✎</a>
+<div class="corner">
+  ${trip && !edit ? `<a href="/t/${trip.slug}/edit" title="Edit this itinerary" aria-label="Edit this itinerary">✎</a>` : ""}
   <button class="theme-toggle" type="button" aria-label="Switch between light and dark theme"><span aria-hidden="true">◐</span></button>
-</div>`
-}
+</div>
 ${body}
+<script>window.TRIP = ${JSON.stringify(trip?.slug ?? null)};</script>
 <script>
   (function () {
     var root = document.documentElement, saved = null;
@@ -71,14 +68,21 @@ ${body}
   })();
 </script>
 ${edit ? '<script src="/editor.js"></script>' : ""}
-<script src="/chat.js"></script>
+${trip ? '<script src="/chat.js"></script>' : ""}
 </body>
 </html>`;
 }
 
+function page(trip: { id: number; slug: string }, edit: boolean) {
+  const doc = exportDoc(trip.id);
+  const title = (doc.settings.title ?? "Itinerary") + (edit ? " — editing" : "");
+  const back = `<a class="trip-back" href="/">← All trips</a>`;
+  return shell(title, back + renderBody(doc, { edit }), trip, edit);
+}
+
 /** The artifact fragment: no <html>/<head>/<body>, styles inline. */
-function artifactFragment() {
-  const doc = exportDoc();
+function artifactFragment(tripId: number) {
+  const doc = exportDoc(tripId);
   return `<title>${doc.settings.title ?? "Itinerary"}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -117,11 +121,69 @@ const server = Bun.serve({
     const m = req.method;
 
     if (p === "/healthz") return Response.json({ ok: true, port: PORT });
-    if (p === "/") return html(page(false));
-    if (p === "/edit") return html(page(true));
     if (p === "/editor.js") return new Response(Bun.file("/workspace/public/editor.js"));
     if (p === "/chat.js") return new Response(Bun.file("/workspace/public/chat.js"));
     if (p === "/api/chat/status") return Response.json({ ready: hasCredentials() });
+
+    if (p === "/") {
+      const trips = listTrips().map((t) => ({ ...t, ...tripCounts(t.id) }));
+      return html(shell("Trips", renderIndex(trips), null));
+    }
+
+    // Create a trip. Posted from the index form, so redirect into it.
+    if (m === "POST" && p === "/api/trip") {
+      const form = await req.formData();
+      const title = String(form.get("title") ?? "").trim();
+      if (!title) return new Response("a trip needs a name", { status: 400 });
+      const trip = createTrip(title, String(form.get("where") ?? "").trim());
+      return Response.redirect(`/t/${trip.slug}/edit`, 303);
+    }
+
+    // Everything below is scoped to one trip: /t/<slug>/...
+    if (p.startsWith("/t/")) {
+      const rest = p.slice(3).split("/");
+      const trip = tripBySlug(decodeURIComponent(rest[0] ?? ""));
+      if (!trip) return new Response("No such trip", { status: 404 });
+      const sub = "/" + rest.slice(1).join("/");
+
+      if (sub === "/") return html(page(trip, false));
+      if (sub === "/edit") return html(page(trip, true));
+
+      if (sub === "/export/data.json")
+        return new Response(JSON.stringify(exportDoc(trip.id), null, 2), {
+          headers: {
+            "content-type": "application/json",
+            "content-disposition": `attachment; filename="${trip.slug}.json"`,
+          },
+        });
+      if (sub === "/export/page.html")
+        return new Response(page(trip, false), {
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "content-disposition": `attachment; filename="${trip.slug}-page.html"`,
+          },
+        });
+      if (sub === "/export/artifact.html")
+        return new Response(artifactFragment(trip.id), {
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "content-disposition": `attachment; filename="${trip.slug}.html"`,
+          },
+        });
+
+      if (m === "POST" && sub === "/rename") {
+        const title = String((await req.formData()).get("title") ?? "").trim();
+        if (title) renameTrip(trip.id, title);
+        return Response.redirect(`/t/${trip.slug}/edit`, 303);
+      }
+      if (m === "POST" && sub === "/delete") {
+        deleteTrip(trip.id);
+        return Response.redirect("/", 303);
+      }
+
+      if (sub.startsWith("/api/")) return api(req, trip.id, sub.slice(4), m);
+      return new Response("Not found", { status: 404 });
+    }
 
     if (p.startsWith("/photo/")) {
       const row = photoBytes(Number(p.slice(7)));
@@ -131,148 +193,136 @@ const server = Bun.serve({
       });
     }
 
-    if (p === "/export/data.json")
-      return new Response(JSON.stringify(exportDoc(), null, 2), {
-        headers: {
-          "content-type": "application/json",
-          "content-disposition": 'attachment; filename="itinerary.json"',
-        },
-      });
-    if (p === "/export/page.html")
-      return new Response(page(false), {
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "content-disposition": 'attachment; filename="itinerary-page.html"',
-        },
-      });
-    if (p === "/export/artifact.html")
-      return new Response(artifactFragment(), {
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "content-disposition": 'attachment; filename="itinerary.html"',
-        },
-      });
-
-    if (m === "POST" && p === "/api/chat") {
-      if (!hasCredentials())
-        return Response.json(
-          { error: "No API key configured. See deploy/README.md." },
-          { status: 503 },
-        );
-
-      const { messages } = (await req.json()) as { messages: any[] };
-      if (!Array.isArray(messages) || !messages.length)
-        return new Response("no messages", { status: 400 });
-
-      // Server-sent events, so the reply streams in as it is written.
-      const encoder = new TextEncoder();
-      const body = new ReadableStream({
-        async start(controller) {
-          const send = (e: unknown) =>
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(e)}\n\n`));
-          try {
-            for await (const event of chat(messages)) send(event);
-          } catch (err: any) {
-            send({ type: "error", message: err?.message ?? "stream failed" });
-          } finally {
-            controller.close();
-          }
-        },
-      });
-      return new Response(body, {
-        headers: {
-          "content-type": "text/event-stream",
-          "cache-control": "no-cache",
-          connection: "keep-alive",
-        },
-      });
-    }
-
-    try {
-      if (m === "PUT" && p === "/api/field") {
-        const { path, value } = (await req.json()) as { path: string; value: string };
-        snapshot();
-        applyField(path, value);
-        return Response.json({ ok: true });
-      }
-
-      if (m === "POST") {
-        const seg = p.split("/").filter(Boolean); // api / entry / :id / action ...
-
-        if (p === "/api/undo") {
-          if (!undo()) return Response.json({ ok: false, reason: "nothing to undo" }, { status: 400 });
-          return Response.json({ ok: true });
-        }
-
-        if (p === "/api/entry") {
-          const { kind, after } = (await req.json()) as { kind: "day" | "leg"; after?: string };
-          snapshot();
-          return Response.json({ ok: true, id: addEntry(kind, after) });
-        }
-
-        if (seg[0] === "api" && seg[1] === "entry" && seg[3] === "photo") {
-          const entryId = Number(seg[2]);
-          const bytes = new Uint8Array(await req.arrayBuffer());
-          const mime = req.headers.get("content-type") ?? "image/jpeg";
-          if (!/^image\/(jpeg|png|webp|gif)$/.test(mime)) return new Response("not an image", { status: 415 });
-          if (bytes.length > 6_000_000) return new Response("image too large", { status: 413 });
-          snapshot();
-          const max = db
-            .query<{ m: number }, [number]>("SELECT COALESCE(MAX(position),0) AS m FROM photos WHERE entry_id = ?")
-            .get(entryId)!.m;
-          db.prepare(
-            "INSERT INTO photos (entry_id, position, mime, bytes, alt, credit, license, source) VALUES (?,?,?,?,?,?,?,?)",
-          ).run(entryId, max + 1, mime, bytes, "", "Your photo", "", "");
-          return Response.json({ ok: true });
-        }
-
-        if (seg[0] === "api" && seg[1] === "photo" && seg[3] === "delete") {
-          snapshot();
-          db.prepare("UPDATE photos SET deleted = 1 WHERE id = ?").run(Number(seg[2]));
-          return Response.json({ ok: true });
-        }
-
-        if (p === "/api/note") {
-          snapshot();
-          return Response.json({ ok: true, id: addNote() });
-        }
-
-        // /api/entry/:id/...  and  /api/note/:id/...
-        if (seg[0] === "api" && (seg[1] === "entry" || seg[1] === "note")) {
-          const table = seg[1] === "entry" ? "entries" : "notes";
-          const id = Number(seg[2]);
-          const action = seg[3];
-          snapshot();
-
-          if (action === "move") {
-            const { dir } = (await req.json()) as { dir: string };
-            shift(table as any, id, dir === "up" ? "up" : "down");
-            return Response.json({ ok: true });
-          }
-          if (action === "delete") {
-            if (table === "entries") deleteEntry(id);
-            else deleteNote(id);
-            return Response.json({ ok: true });
-          }
-          if (action === "slot") {
-            if (seg[4] !== undefined && seg[5] === "delete") deleteSlot(id, Number(seg[4]));
-            else addSlot(id);
-            return Response.json({ ok: true });
-          }
-        }
-
-        if (p === "/api/import") {
-          snapshot();
-          restore(await req.json());
-          return Response.json({ ok: true });
-        }
-      }
-    } catch (err: any) {
-      return new Response(err?.message ?? "error", { status: 400 });
-    }
-
     return new Response("Not found", { status: 404 });
   },
 });
 
-console.log(`Tokaido Loop serving on http://localhost:${server.port}  (edit at /edit)`);
+console.log(`Tokaido Loop serving on http://localhost:${server.port}`);
+
+/* ----------------------------------------------------------------- api --- */
+
+async function api(req: Request, trip: number, path: string, m: string): Promise<Response> {
+  // path arrives without the "/api" prefix, e.g. "/field" or "/entry/7/move"
+  const seg = path.split("/").filter(Boolean);
+
+  if (m === "POST" && path === "/chat") {
+    if (!hasCredentials())
+      return Response.json({ error: "No API key configured. See deploy/README.md." }, { status: 503 });
+
+    const { messages } = (await req.json()) as { messages: any[] };
+    if (!Array.isArray(messages) || !messages.length)
+      return new Response("no messages", { status: 400 });
+
+    const encoder = new TextEncoder();
+    const body = new ReadableStream({
+      async start(controller) {
+        const send = (e: unknown) =>
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(e)}\n\n`));
+        try {
+          for await (const event of chat(trip, messages)) send(event);
+        } catch (err: any) {
+          send({ type: "error", message: err?.message ?? "stream failed" });
+        } finally {
+          controller.close();
+        }
+      },
+    });
+    return new Response(body, {
+      headers: {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache",
+        connection: "keep-alive",
+      },
+    });
+  }
+
+  try {
+    if (m === "PUT" && path === "/field") {
+      const { path: field, value } = (await req.json()) as { path: string; value: string };
+      withSnapshot(trip, () => applyField(trip, field, value));
+      return Response.json({ ok: true });
+    }
+
+    if (m !== "POST") return new Response("Not found", { status: 404 });
+
+    if (path === "/undo") {
+      if (!undo(trip)) return Response.json({ ok: false, reason: "nothing to undo" }, { status: 400 });
+      return Response.json({ ok: true });
+    }
+
+    if (path === "/entry") {
+      const { kind, after } = (await req.json()) as { kind: "day" | "leg"; after?: string };
+      return Response.json({ ok: true, id: withSnapshot(trip, () => addEntry(trip, kind, after)) });
+    }
+
+    if (path === "/note") {
+      return Response.json({ ok: true, id: withSnapshot(trip, () => addNote(trip)) });
+    }
+
+    if (path === "/import") {
+      snapshot(trip);
+      restore(trip, await req.json());
+      return Response.json({ ok: true });
+    }
+
+    if (seg[0] === "entry" && seg[2] === "photo") {
+      const entryId = Number(seg[1]);
+      const bytes = new Uint8Array(await req.arrayBuffer());
+      const mime = req.headers.get("content-type") ?? "image/jpeg";
+      if (!/^image\/(jpeg|png|webp|gif)$/.test(mime))
+        return new Response("not an image", { status: 415 });
+      if (bytes.length > 6_000_000) return new Response("image too large", { status: 413 });
+      // Only accept a photo for an entry that belongs to this trip.
+      const owned = db
+        .query("SELECT 1 FROM entries WHERE id = ? AND trip_id = ?")
+        .get(entryId, trip);
+      if (!owned) return new Response("no such entry", { status: 404 });
+      snapshot(trip);
+      const max = db
+        .query<{ m: number }, [number, number]>(
+          "SELECT COALESCE(MAX(position),0) AS m FROM photos WHERE entry_id = ? AND trip_id = ?",
+        )
+        .get(entryId, trip)!.m;
+      db.prepare(
+        "INSERT INTO photos (trip_id, entry_id, position, mime, bytes, alt, credit, license, source) VALUES (?,?,?,?,?,?,?,?,?)",
+      ).run(trip, entryId, max + 1, mime, bytes, "", "Your photo", "", "");
+      return Response.json({ ok: true });
+    }
+
+    if (seg[0] === "photo" && seg[2] === "delete") {
+      snapshot(trip);
+      db.prepare("UPDATE photos SET deleted = 1 WHERE id = ? AND trip_id = ?").run(
+        Number(seg[1]), trip,
+      );
+      return Response.json({ ok: true });
+    }
+
+    if (seg[0] === "entry" || seg[0] === "note") {
+      const table = seg[0] === "entry" ? "entries" : "notes";
+      const id = Number(seg[1]);
+      const action = seg[2];
+
+      if (action === "move") {
+        const { dir } = (await req.json()) as { dir: string };
+        withSnapshot(trip, () => shift(trip, table as any, id, dir === "up" ? "up" : "down"));
+        return Response.json({ ok: true });
+      }
+      if (action === "delete") {
+        withSnapshot(trip, () => (table === "entries" ? deleteEntry(trip, id) : deleteNote(trip, id)));
+        return Response.json({ ok: true });
+      }
+      if (action === "slot") {
+        withSnapshot(trip, () =>
+          seg[3] !== undefined && seg[4] === "delete"
+            ? deleteSlot(trip, id, Number(seg[3]))
+            : addSlot(trip, id),
+        );
+        return Response.json({ ok: true });
+      }
+    }
+  } catch (err: any) {
+    return new Response(err?.message ?? "error", { status: 400 });
+  }
+
+  return new Response("Not found", { status: 404 });
+}

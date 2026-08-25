@@ -24,7 +24,26 @@ db.exec(`
     taken   TEXT NOT NULL,
     payload TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS photos (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id INTEGER NOT NULL,
+    position REAL NOT NULL DEFAULT 0,
+    mime     TEXT NOT NULL,
+    bytes    BLOB NOT NULL,
+    alt      TEXT NOT NULL DEFAULT '',
+    credit   TEXT NOT NULL DEFAULT '',
+    license  TEXT NOT NULL DEFAULT '',
+    source   TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS photos_entry ON photos (entry_id, position);
 `);
+
+// Deleting a photo is a soft delete: the undo stack stores row state but not
+// blobs, so the bytes have to survive for undo to be able to bring one back.
+if (!db.query<{ name: string }, []>("PRAGMA table_info(photos)").all().some((c) => c.name === "deleted")) {
+  db.exec("ALTER TABLE photos ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0");
+}
+
 
 /* --------------------------------------------------------------- trips --- */
 
@@ -551,28 +570,6 @@ export function exportDoc(tripId: number) {
   };
 }
 
-/* -------------------------------------------------------------- photos --- */
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS photos (
-    id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    entry_id INTEGER NOT NULL,
-    position REAL NOT NULL DEFAULT 0,
-    mime     TEXT NOT NULL,
-    bytes    BLOB NOT NULL,
-    alt      TEXT NOT NULL DEFAULT '',
-    credit   TEXT NOT NULL DEFAULT '',
-    license  TEXT NOT NULL DEFAULT '',
-    source   TEXT NOT NULL DEFAULT ''
-  );
-  CREATE INDEX IF NOT EXISTS photos_entry ON photos (entry_id, position);
-`);
-
-// Deleting a photo is a soft delete: the undo stack stores row state but not
-// blobs, so the bytes have to survive for undo to be able to bring one back.
-if (!db.query<{ name: string }, []>("PRAGMA table_info(photos)").all().some((c) => c.name === "deleted")) {
-  db.exec("ALTER TABLE photos ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0");
-}
 
 export type Photo = {
   id: number;

@@ -1,4 +1,5 @@
 (function () {
+  var API = "/t/" + (window.TRIP || "") + "/api";
   var dock, log, form, input, sendBtn, statusLine;
   var history = [];   // Anthropic MessageParam[] — what the server replays
   var busy = false;
@@ -122,7 +123,7 @@
     var acc = "";
 
     try {
-      var res = await fetch("/api/chat", {
+      var res = await fetch(API + "/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ messages: history }),

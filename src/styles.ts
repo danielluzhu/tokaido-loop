@@ -265,6 +265,54 @@ h2{
 }
 .shot-add:hover{color:var(--accent);border-color:var(--accent)}
 
+/* -------------------------------------------------------------- index --- */
+.index .masthead{margin-bottom:40px}
+.trip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.trip-card{
+  display:flex;flex-direction:column;gap:5px;
+  padding:18px 20px 20px;text-decoration:none;
+  background:var(--surface);border:1px solid var(--hairline);border-radius:4px;
+  box-shadow:var(--shadow);transition:border-color .13s,transform .13s;
+}
+.trip-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.trip-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.trip-name{
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:900;font-size:21px;line-height:1.15;letter-spacing:-.015em;color:var(--ink);
+}
+.trip-meta{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);
+}
+.trip-date{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:10.5px;letter-spacing:.06em;color:var(--muted);margin-top:auto;padding-top:8px;
+}
+.empty{grid-column:1/-1;color:var(--muted);margin:0}
+.trip-new{
+  display:flex;flex-direction:column;gap:9px;padding:18px 20px 20px;
+  border:1px dashed var(--hairline);border-radius:4px;background:transparent;
+}
+.new-label{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);
+}
+.trip-new input{
+  font:inherit;font-size:15px;padding:8px 10px;border-radius:3px;
+  background:var(--ground);color:var(--ink);border:1px solid var(--hairline);
+}
+.trip-new input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.trip-new .btn{margin-top:2px;text-align:center}
+
+/* back link on a trip page */
+.trip-back{
+  display:inline-flex;align-items:center;gap:6px;margin-bottom:22px;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--muted);text-decoration:none;
+}
+.trip-back:hover{color:var(--accent)}
+
 /* --------------------------------------------------------------- chat --- */
 .chat-launch{
   position:fixed;right:16px;bottom:16px;z-index:40;
@@ -354,6 +402,7 @@ body.chat-open .chat-launch{display:none}
 .btn:hover{color:var(--ink);border-color:var(--rail-soft)}
 .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger:hover{background:#c0392b;border-color:#c0392b;color:#fff}
 .btn.primary:hover{color:#fff;filter:brightness(1.07)}
 .status{color:var(--muted);font-size:11.5px;letter-spacing:.06em;min-width:8ch}
 .status.saving{color:var(--rail)}

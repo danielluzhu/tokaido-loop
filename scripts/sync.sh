@@ -11,6 +11,23 @@ bun run scripts/export-content.ts >/dev/null 2>&1 || {
   exit 1
 }
 
+# Never commit an export that lost content -- this timer runs on a schedule and
+# has no idea whether the database is mid-migration.
+if ! bun run scripts/validate-export.ts; then
+  echo "refusing to commit; run scripts/sync.sh by hand once the app is healthy"
+  git checkout -- data 2>/dev/null
+  exit 1
+fi
+
+# A sudden mass deletion of tracked content is the same failure wearing a
+# different hat: let it be deliberate, not automatic.
+deleted=$(git diff --numstat --diff-filter=D -- data | wc -l)
+if [ "$deleted" -gt 3 ] && [ -z "${TOKAIDO_ALLOW_DELETE:-}" ]; then
+  echo "refusing to commit: $deleted content files would be deleted."
+  echo "if that is intended: TOKAIDO_ALLOW_DELETE=1 scripts/sync.sh"
+  exit 1
+fi
+
 git add -A
 if ! git diff --cached --quiet; then
   # Name the commit after what actually moved.

@@ -11,6 +11,7 @@ import {
   shift,
   snapshot,
   undo,
+  withSnapshot,
 } from "./store";
 
 export const MODEL = "claude-opus-5";
@@ -55,7 +56,12 @@ Working rules:
   whole itinerary back.
 - If a request is ambiguous in a way that changes the result, ask before
   editing. Otherwise just do it.
-- You can undo the last change with the undo tool.`;
+- You can undo the last change with the undo tool.
+- A new trip starts as one placeholder day. If the itinerary still looks like
+  that and the person describes where they are going, build the whole thing:
+  add the days and travel legs, then fill in each Arrive / Do / Stay with real
+  specifics — named places, rough fares, actual neighbourhoods. Set the title,
+  standfirst, route and stats too. Be concrete; a skeleton is not useful.`;
 
 export const TOOLS: Anthropic.Tool[] = [
   {
@@ -170,31 +176,31 @@ const MUTATING = new Set([
   "undo",
 ]);
 
-export function runTool(name: string, input: any): unknown {
+export function runTool(trip: number, name: string, input: any): unknown {
   switch (name) {
     case "get_itinerary":
-      return exportDoc();
+      return exportDoc(trip);
     case "set_field":
-      applyField(input.path, input.value);
+      applyField(trip, input.path, input.value);
       return { ok: true, path: input.path };
     case "add_entry":
-      return { ok: true, id: addEntry(input.kind, input.after_id) };
+      return { ok: true, id: addEntry(trip, input.kind, input.after_id) };
     case "delete_entry":
-      deleteEntry(input.id);
+      deleteEntry(trip, input.id);
       return { ok: true };
     case "move_entry":
-      return { ok: shift("entries", input.id, input.direction) };
+      return { ok: shift(trip, "entries", input.id, input.direction) };
     case "edit_slots":
-      if (input.action === "add") addSlot(input.entry_id, input.label ?? "Note");
-      else deleteSlot(input.entry_id, input.index ?? 0);
+      if (input.action === "add") addSlot(trip, input.entry_id, input.label ?? "Note");
+      else deleteSlot(trip, input.entry_id, input.index ?? 0);
       return { ok: true };
     case "edit_notes":
       if (input.action === "add")
-        return { ok: true, id: addNote(input.heading ?? undefined, input.body ?? undefined) };
-      deleteNote(input.id);
+        return { ok: true, id: addNote(trip, input.heading ?? undefined, input.body ?? undefined) };
+      deleteNote(trip, input.id);
       return { ok: true };
     case "undo":
-      return { ok: undo() };
+      return { ok: undo(trip) };
     default:
       throw new Error("unknown tool: " + name);
   }
@@ -211,6 +217,7 @@ export type ChatEvent =
  * stream them. Returns when Claude stops asking for tools.
  */
 export async function* chat(
+  trip: number,
   history: Anthropic.MessageParam[],
 ): AsyncGenerator<ChatEvent> {
   const client = new Anthropic();
@@ -262,9 +269,11 @@ export async function* chat(
     // All results for one assistant turn go back in a single user message.
     const results: Anthropic.ToolResultBlockParam[] = [];
     for (const call of calls) {
-      if (MUTATING.has(call.name) && call.name !== "undo") snapshot();
       try {
-        const out = runTool(call.name, call.input as any);
+        const mutates = MUTATING.has(call.name) && call.name !== "undo";
+        const out = mutates
+          ? withSnapshot(trip, () => runTool(trip, call.name, call.input as any))
+          : runTool(trip, call.name, call.input as any);
         if (MUTATING.has(call.name)) changed = true;
         yield { type: "tool", name: call.name, summary: describe(call.name, call.input as any) };
         results.push({
