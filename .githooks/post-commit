@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+[ -n "${TOKAIDO_NO_PUSH:-}" ] && exit 0
+git remote get-url origin >/dev/null 2>&1 || exit 0
+( PATH="/usr/local/bin:/usr/bin:/bin" git push -q origin HEAD >>/workspace/.push.log 2>&1 & ) &
+exit 0

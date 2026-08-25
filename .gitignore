@@ -5,3 +5,5 @@ itinerary.db
 itinerary.db-wal
 itinerary.db-shm
 node_modules
+itinerary.html
+.push.log

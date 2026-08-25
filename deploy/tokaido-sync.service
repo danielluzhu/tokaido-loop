@@ -1,0 +1,15 @@
+[Unit]
+Description=Export the itinerary and push it to GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/workspace
+ExecStart=/workspace/scripts/sync.sh
+TimeoutStartSec=180
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tokaido-sync

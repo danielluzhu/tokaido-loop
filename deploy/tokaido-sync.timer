@@ -1,0 +1,12 @@
+[Unit]
+Description=Push itinerary updates to GitHub every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+# Coalesce if the machine was asleep, rather than firing a backlog.
+Persistent=true
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
