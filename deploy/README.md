@@ -119,3 +119,35 @@ which is what makes the repo an actual backup — verified lossless.
 
 `itinerary.html` is generated and no longer tracked; it inlines every photo as
 a data URI, so it is ~5MB and rewrites on every content change.
+
+## Trips
+
+`/` lists trips; `/t/<slug>` is one; the form on the index creates one with a
+single placeholder day and drops you into its editor. Content tables carry a
+`trip_id`, so each trip has its own settings, entries, notes, photos and undo
+stack. Passing another trip's row id to a trip's API is rejected, not applied.
+
+`data/` holds one directory per trip plus `trips.json`.
+
+**The sync timer runs on a schedule and cannot tell whether the app is
+healthy.** During the multi-trip migration it fired while the database was torn
+down and committed an empty export over good content. Two guards now stand in
+the way:
+
+- `scripts/validate-export.ts` fails the sync if the export has no trips, a
+  trip with no entries or no title, or a referenced photo file that is missing
+  or truncated.
+- `sync.sh` refuses to commit when more than three content files would be
+  deleted. Deliberate ones need `TOKAIDO_ALLOW_DELETE=1 scripts/sync.sh`.
+
+If you are about to do anything that stops the service or rebuilds the
+database, stop the timer first:
+
+```sh
+sudo systemctl stop tokaido-sync.timer
+# ... work ...
+sudo systemctl start tokaido-sync.timer
+```
+
+Content is recoverable from git either way: `git log -- data/` and check the
+file sizes, then `git show <commit>:data/<slug>/itinerary.json`.
