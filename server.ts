@@ -9,6 +9,7 @@ import {
   restore, shift, snapshot, undo, withSnapshot,
 } from "./src/store";
 import { chat, hasCredentials } from "./src/chat";
+import { fontsHref, themeCSS, validateTheme } from "./src/theme";
 
 seedIfEmpty();
 
@@ -20,7 +21,7 @@ const FAVICON =
 /* --------------------------------------------------------------- pages --- */
 
 /** One HTML skeleton for both the index and a trip page. */
-function shell(title: string, body: string, trip: { slug: string } | null, edit = false) {
+function shell(title: string, body: string, trip: { slug: string } | null, edit = false, theme: any = {}) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -31,8 +32,9 @@ function shell(title: string, body: string, trip: { slug: string } | null, edit 
 <title>${title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="${fontsHref(theme)}">
 <style>${CSS}
+${themeCSS(theme)}
   .corner{position:fixed;top:16px;right:16px;z-index:10;display:flex;gap:8px}
   .corner button,.corner a{
     width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -77,18 +79,20 @@ function page(trip: { id: number; slug: string }, edit: boolean) {
   const doc = exportDoc(trip.id);
   const title = (doc.settings.title ?? "Itinerary") + (edit ? " — editing" : "");
   const back = `<a class="trip-back" href="/">← All trips</a>`;
-  return shell(title, back + renderBody(doc, { edit }), trip, edit);
+  return shell(title, back + renderBody(doc, { edit }), trip, edit, doc.settings.theme ?? {});
 }
 
 /** The artifact fragment: no <html>/<head>/<body>, styles inline. */
 function artifactFragment(tripId: number) {
   const doc = exportDoc(tripId);
+  const theme = doc.settings.theme ?? {};
   return `<title>${doc.settings.title ?? "Itinerary"}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="${fontsHref(theme)}">
 
-<style>${CSS}</style>
+<style>${CSS}
+${themeCSS(theme)}</style>
 
 ${inlinePhotos(renderBody(doc, { edit: false }))}`;
 }

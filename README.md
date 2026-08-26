@@ -54,3 +54,19 @@ photo` in the editor uploads your own.
 
 Fares, journey times and opening hours are planning figures, not quotes. Check
 anything you are about to book.
+
+## Restyling
+
+The chat bot changes how the page looks as well as what it says. Ask for
+"warmer", "bigger type", "less cramped", "make it feel like Lisbon" and it
+rewrites the theme.
+
+A theme is stored as an ordinary setting, so it rides along with undo, the git
+export and the artifact — no separate plumbing. It can set the eleven colour
+tokens (in light/dark pairs), the display/body/mono fonts, and page width,
+corner radius and density.
+
+Values are validated rather than trusted: colours must be hex, fonts must
+actually exist on Google Fonts, and layout numbers must be in range. The theme
+is interpolated into a `<style>` block on a shareable page, so a stray `}`
+would otherwise let content break out of CSS and into markup.

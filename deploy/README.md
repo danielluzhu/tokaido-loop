@@ -151,3 +151,21 @@ sudo systemctl start tokaido-sync.timer
 
 Content is recoverable from git either way: `git log -- data/` and check the
 file sizes, then `git show <commit>:data/<slug>/itinerary.json`.
+
+## Themes
+
+`src/theme.ts` validates and renders per-trip styling. The theme lives in
+`settings.theme`, which is why undo, `data/` export and the artifact all carry
+it for free.
+
+Three things it gets right that are easy to get wrong:
+
+- The override block is emitted **after** the base stylesheet, so it wins
+  without `!important`.
+- Dark values are written into both the `prefers-color-scheme` media query and
+  the `[data-theme="dark"]` stamp, or a manual toggle keeps the old palette.
+- A light-only theme is copied into the dark rules too. Otherwise setting a new
+  accent leaves dark mode on the previous one, which reads as a bug.
+
+Font names are checked against Google Fonts at set time. A typo would otherwise
+fall back silently and look like the change did nothing.

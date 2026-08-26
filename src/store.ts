@@ -35,6 +35,19 @@ export function withSnapshot<T>(trip: number, fn: () => T): T {
   }
 }
 
+export async function withSnapshotAsync<T>(trip: number, fn: () => Promise<T> | T): Promise<T> {
+  snapshot(trip);
+  const id = db
+    .query<{ id: number }, []>("SELECT id FROM snapshots ORDER BY id DESC LIMIT 1")
+    .get()!.id;
+  try {
+    return await fn();
+  } catch (err) {
+    db.prepare("DELETE FROM snapshots WHERE id = ?").run(id);
+    throw err;
+  }
+}
+
 export function restore(trip: number, doc: any) {
   db.transaction(() => {
     for (const t of ["entries", "notes", "settings"])
@@ -74,7 +87,7 @@ export function undo(trip: number) {
   return true;
 }
 
-function setIn(obj: any, path: string[], value: string) {
+function setIn(obj: any, path: string[], value: unknown) {
   let cur = obj;
   for (let i = 0; i < path.length - 1; i++) {
     const k: any = /^\d+$/.test(path[i]) ? Number(path[i]) : path[i];
@@ -87,7 +100,7 @@ function setIn(obj: any, path: string[], value: string) {
   cur[last] = value;
 }
 
-export function applyField(trip: number, path: string, value: string) {
+export function applyField(trip: number, path: string, value: unknown) {
   const parts = path.split(":");
   const [root] = parts;
 
@@ -102,7 +115,7 @@ export function applyField(trip: number, path: string, value: string) {
     if (parts.length === 2) {
       put.run(trip, key, JSON.stringify(value));
       // The index lists trips by trips.title; keep it in step with the heading.
-      if (key === "title" && value.trim())
+      if (key === "title" && typeof value === "string" && value.trim())
         db.prepare("UPDATE trips SET title = ? WHERE id = ?").run(value.trim(), trip);
       return;
     }

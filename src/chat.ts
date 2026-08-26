@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { exportDoc } from "./db";
+import { COLOR_KEYS, fontExists, themeCSS, validateTheme } from "./theme";
 import {
   addEntry,
   addNote,
@@ -11,7 +12,7 @@ import {
   shift,
   snapshot,
   undo,
-  withSnapshot,
+  withSnapshotAsync,
 } from "./store";
 
 export const MODEL = "claude-opus-5";
@@ -57,6 +58,12 @@ Working rules:
 - If a request is ambiguous in a way that changes the result, ask before
   editing. Otherwise just do it.
 - You can undo the last change with the undo tool.
+- You can restyle the page as well as rewrite it. When someone asks for a
+  different look ("warmer", "make it feel like Lisbon", "bigger type", "less
+  cramped"), use set_theme. Change the few tokens that carry the idea rather
+  than every colour at once, and always set light and dark together so the page
+  still reads in both. Accent is the loudest one; ground and surface are the
+  quietest. Keep text and background far enough apart to stay legible.
 - A new trip starts as one placeholder day. If the itinerary still looks like
   that and the person describes where they are going, build the whole thing:
   add the days and travel legs, then fill in each Arrive / Do / Stay with real
@@ -159,6 +166,42 @@ export const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "set_theme",
+    description:
+      "Restyle the page. Merges into the current theme, so send only what changes. Colours are hex and come in light/dark pairs: " +
+      COLOR_KEYS.join(", ") +
+      ". 'ink' is body text, 'ground' the page background, 'surface' the cards, 'accent' the loud highlight, 'rail' the timeline line, 'hairline' the borders. Fonts are Google Fonts family names for the display/body/mono roles. Layout takes width (520-1400px), radius (0-28px) and density (compact|normal|roomy).",
+    input_schema: {
+      type: "object",
+      properties: {
+        light: { type: "object", description: "Hex colours for light mode." },
+        dark: { type: "object", description: "Hex colours for dark mode." },
+        fonts: {
+          type: "object",
+          properties: {
+            display: { type: "string" },
+            body: { type: "string" },
+            mono: { type: "string" },
+          },
+        },
+        layout: {
+          type: "object",
+          properties: {
+            width: { type: "number" },
+            radius: { type: "number" },
+            density: { type: "string", enum: ["compact", "normal", "roomy"] },
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "reset_theme",
+    description: "Drop every style override and go back to the original design.",
+    input_schema: { type: "object", properties: {}, additionalProperties: false, required: [] },
+  },
+  {
     name: "undo",
     description: "Undo the most recent change to the itinerary.",
     input_schema: { type: "object", properties: {}, additionalProperties: false, required: [] },
@@ -167,6 +210,8 @@ export const TOOLS: Anthropic.Tool[] = [
 
 /** Tools that change something; used to decide when to snapshot and reload. */
 const MUTATING = new Set([
+  "set_theme",
+  "reset_theme",
   "set_field",
   "add_entry",
   "delete_entry",
@@ -176,7 +221,7 @@ const MUTATING = new Set([
   "undo",
 ]);
 
-export function runTool(trip: number, name: string, input: any): unknown {
+export async function runTool(trip: number, name: string, input: any): Promise<unknown> {
   switch (name) {
     case "get_itinerary":
       return exportDoc(trip);
@@ -198,6 +243,26 @@ export function runTool(trip: number, name: string, input: any): unknown {
       if (input.action === "add")
         return { ok: true, id: addNote(trip, input.heading ?? undefined, input.body ?? undefined) };
       deleteNote(trip, input.id);
+      return { ok: true };
+    case "set_theme": {
+      const current = exportDoc(trip).settings.theme ?? {};
+      const merged = {
+        light: { ...(current.light ?? {}), ...(input.light ?? {}) },
+        dark: { ...(current.dark ?? {}), ...(input.dark ?? {}) },
+        fonts: { ...(current.fonts ?? {}), ...(input.fonts ?? {}) },
+        layout: { ...(current.layout ?? {}), ...(input.layout ?? {}) },
+      };
+      const theme = validateTheme(merged);
+      // A typo'd family would silently fall back and look like nothing happened.
+      for (const [role, family] of Object.entries(theme.fonts ?? {})) {
+        if (!(await fontExists(family as string)))
+          throw new Error(`"${family}" is not on Google Fonts, so the ${role} font would not load. Pick another.`);
+      }
+      applyField(trip, "setting:theme", theme as any);
+      return { ok: true, theme };
+    }
+    case "reset_theme":
+      applyField(trip, "setting:theme", {} as any);
       return { ok: true };
     case "undo":
       return { ok: undo(trip) };
@@ -272,8 +337,8 @@ export async function* chat(
       try {
         const mutates = MUTATING.has(call.name) && call.name !== "undo";
         const out = mutates
-          ? withSnapshot(trip, () => runTool(trip, call.name, call.input as any))
-          : runTool(trip, call.name, call.input as any);
+          ? await withSnapshotAsync(trip, () => runTool(trip, call.name, call.input as any))
+          : await runTool(trip, call.name, call.input as any);
         if (MUTATING.has(call.name)) changed = true;
         yield { type: "tool", name: call.name, summary: describe(call.name, call.input as any) };
         results.push({
@@ -312,6 +377,10 @@ function describe(name: string, input: any) {
       return input.action === "add" ? "added a row" : "removed a row";
     case "edit_notes":
       return input.action === "add" ? "added a note card" : "deleted a note card";
+    case "set_theme":
+      return "restyled the page";
+    case "reset_theme":
+      return "restored the original design";
     case "undo":
       return "undid the last change";
     default:
