@@ -44,7 +44,11 @@
         "value": "2h30"
       }
     ],
-    "theme": {},
+    "theme": {
+      "light": {
+        "accent": "#B45309"
+      }
+    },
     "title": "Tokaido Loop"
   },
   "entries": [
